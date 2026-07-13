@@ -3,3 +3,10 @@ INSIGHTS.md
 INSIGHTS/
 DEVLOG.md
 DEVLOG/
+
+# TLC model-checker artifacts
+tla/states/
+tla/*_TTrace_*.tla
+tla/*_TTrace_*.bin
+tla/*.st
+tla/*.old
