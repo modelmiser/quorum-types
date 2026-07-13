@@ -84,6 +84,13 @@
 //! becomes a runtime set; the type carries only the epoch and the majority
 //! property (the `gradual` boundary).
 //!
+//! ## Both mechanisms together: [`mod@reconfig`]
+//!
+//! [`reconfig`] unifies the temporal lease with the dynamic quorum. Composing
+//! them shows they are not redundant: within an epoch, safety is *structural*
+//! (quorum intersection); across an epoch, quorums can be disjoint, so safety is
+//! *temporal* (the lease). Each covers exactly where the other fails.
+//!
 //! ## Still out of scope (parking lot → later versions)
 //!
 //! The consistency-lattice value types (`Agreed`/`Local`/`At`), deterministic
@@ -101,6 +108,7 @@
 
 pub mod failover;
 pub mod membership;
+pub mod reconfig;
 
 use core::marker::PhantomData;
 
