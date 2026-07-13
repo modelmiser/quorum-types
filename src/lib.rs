@@ -66,13 +66,20 @@
 //! assert_eq!(whole.epoch(), 7);
 //! ```
 //!
-//! ## Explicitly out of scope (parking lot → the TLA+ step / later versions)
+//! ## The failure layer: [`mod@failover`]
 //!
-//! Failure, partitions, leases, affine drop-arms, >2-way splits, the
-//! consistency-lattice value types (`Agreed`/`Local`/`At`), benchmarks, CI.
-//! In particular this toy's `merge` **cannot fail** — that is precisely the
-//! lockstep assumption a real distributed system violates, and the next step
-//! (a TLA+ model of a *lease-degraded* complement) attacks it directly.
+//! This module's `merge` **cannot fail** — the lockstep assumption a real
+//! distributed system violates. The [`failover`] module adds the lease-degraded
+//! complement (validated first in `tla/quorum.tla`): a runtime lease guard for
+//! reconfiguration, because the TLA+ model proved the type-level epoch is
+//! *necessary but not sufficient* — split-brain is temporal and cannot be
+//! discharged structurally.
+//!
+//! ## Still out of scope (parking lot → later versions)
+//!
+//! Splits into more than two parts, the consistency-lattice value types
+//! (`Agreed`/`Local`/`At`), deterministic partition/heal simulation
+//! (`turmoil`), benchmarks, CI.
 //!
 //! ## Relationship to `warp-types`
 //!
@@ -83,6 +90,8 @@
 //! read-only reference and is not a dependency.
 
 #![forbid(unsafe_code)]
+
+pub mod failover;
 
 use core::marker::PhantomData;
 
@@ -98,10 +107,13 @@ mod sealed {
 pub trait ActiveSet: sealed::Sealed {}
 
 /// The full membership (a quorum of everyone).
+#[derive(Debug)]
 pub struct All;
 /// The low complementary half produced by [`Quorum::split`].
+#[derive(Debug)]
 pub struct Lo;
 /// The high complementary half produced by [`Quorum::split`].
+#[derive(Debug)]
 pub struct Hi;
 
 impl sealed::Sealed for All {}
