@@ -75,11 +75,19 @@
 //! *necessary but not sufficient* — split-brain is temporal and cannot be
 //! discharged structurally.
 //!
+//! ## Dynamic, unbounded membership: [`mod@membership`]
+//!
+//! The `All`/`Lo`/`Hi` sets above are static and *disjoint* (a partition, like a
+//! GPU warp's lanes). The [`membership`] module generalizes to dynamic, unbounded
+//! clusters by flipping the set relation: distributed safety needs *intersecting*
+//! quorums (any two majorities overlap), not disjoint complements. Membership
+//! becomes a runtime set; the type carries only the epoch and the majority
+//! property (the `gradual` boundary).
+//!
 //! ## Still out of scope (parking lot → later versions)
 //!
-//! Splits into more than two parts, the consistency-lattice value types
-//! (`Agreed`/`Local`/`At`), deterministic partition/heal simulation
-//! (`turmoil`), benchmarks, CI.
+//! The consistency-lattice value types (`Agreed`/`Local`/`At`), deterministic
+//! network simulation (`turmoil`, needs a wire protocol first), benchmarks, CI.
 //!
 //! ## Relationship to `warp-types`
 //!
@@ -92,6 +100,7 @@
 #![forbid(unsafe_code)]
 
 pub mod failover;
+pub mod membership;
 
 use core::marker::PhantomData;
 
