@@ -2,6 +2,7 @@
 name = "quorum-types"
 version = "0.1.0"
 edition = "2024"
+rust-version = "1.85"
 license = "MIT"
 description = "Feasibility toy: epoch-indexed complement proofs — split-brain unrepresentable at compile time. Distributed-systems generalization of warp-types."
 publish = false

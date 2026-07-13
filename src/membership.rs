@@ -43,7 +43,6 @@
 //! let _ = q0.intersect(&q1); // Quorum<0> vs Quorum<1> — type error
 //! ```
 
-use core::marker::PhantomData;
 use std::collections::BTreeSet;
 
 /// A cluster member's identity.
@@ -66,7 +65,6 @@ pub struct Config<const E: u64> {
 #[must_use = "a Quorum is a certified majority; use it or the certification was pointless"]
 pub struct Quorum<const E: u64> {
     members: BTreeSet<NodeId>,
-    _epoch: PhantomData<[(); 0]>,
 }
 
 impl<const E: u64> Config<E> {
@@ -100,7 +98,7 @@ impl<const E: u64> Config<E> {
     pub fn certify(&self, subset: BTreeSet<NodeId>) -> Option<Quorum<E>> {
         let is_subset = subset.is_subset(&self.members);
         if is_subset && subset.len() >= self.threshold() {
-            Some(Quorum { members: subset, _epoch: PhantomData })
+            Some(Quorum { members: subset })
         } else {
             None
         }

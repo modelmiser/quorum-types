@@ -43,6 +43,13 @@ impl Cluster {
             self.now
         );
     }
+
+    /// May a revived stale holder resume serving? Only if it is *both* reachable
+    /// again *and* its lease is still valid. Reachability alone is not authority —
+    /// this is what makes healing a partition safe when the lease has lapsed.
+    fn stale_holder_may_reserve(&self, held: Lease) -> bool {
+        self.hi_reachable && held.is_valid(self.now)
+    }
 }
 
 /// Replays the TLA+ counterexample trace as an executable scenario, then heals,
@@ -87,12 +94,15 @@ fn replays_trace_and_heals_without_split_brain() {
     assert_eq!(leader1.epoch(), 1);
     c.assert_no_split_brain();
 
-    // t=7: heal. The old `hi` holder returns believing it still leads epoch 0 —
-    // but its lease (until t=5) is invalid now, so it cannot re-serve; it can
-    // only step down. No split-brain results.
+    // t=7: heal. The old `hi` holder returns (reachable again) believing it still
+    // leads epoch 0 — but its lease (until t=5) is invalid now, so even though it
+    // is reachable it cannot re-serve; it can only step down. No split-brain.
     c.now = 7;
     c.hi_reachable = true;
-    assert!(!lease0.is_valid(c.now), "the revived stale leader's lease is dead");
+    assert!(
+        !c.stale_holder_may_reserve(lease0),
+        "a reachable holder with a dead lease still cannot re-serve — reachability is not authority"
+    );
     c.assert_no_split_brain();
     assert_eq!(c.serving, vec![1]);
 }

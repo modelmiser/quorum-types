@@ -2,8 +2,8 @@
 //!
 //! The base module makes cross-epoch [`merge`](crate::merge) a *compile* error:
 //! split-brain is unrepresentable at the type level. But that is **necessary,
-//! not sufficient** — a fact established by the TLA+ model in `tla/quorum.tla`
-//! (see `INSIGHTS/lease-failover.md`). Split-brain is *temporal*: an old leader
+//! not sufficient** — a fact established by the TLA+ model in `tla/quorum.tla`.
+//! Split-brain is *temporal*: an old leader
 //! keeps serving until its lease lapses, and no type can express "wait for the
 //! old lease to expire." So failover needs a **runtime** lease check.
 //!

@@ -4,9 +4,10 @@ INSIGHTS/
 DEVLOG.md
 DEVLOG/
 
-# TLC model-checker artifacts
-tla/states/
-tla/*_TTrace_*.tla
-tla/*_TTrace_*.bin
-tla/*.st
-tla/*.old
+# TLC model-checker artifacts (any directory — TLC writes to CWD)
+states/
+*_TTrace_*.tla
+*_TTrace_*.bin
+*.st
+*.fp
+*.old

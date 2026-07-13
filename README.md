@@ -56,12 +56,18 @@ composition showing the two guards are complementary (6).
   depth 4) pins this down.
 - **Dynamic membership is a sign flip, not a scale-up.** Divergence *partitions*
   lanes into disjoint complements; failure-tolerant consensus needs the opposite
-  relation — any two quorums must *intersect*. Overlap is what forces agreement.
+  relation — any two quorums must *intersect*. Overlap is *necessary* for
+  agreement (though not alone sufficient — the shared member must also refuse to
+  double-vote, which this toy does not model).
 - **The two guards partition safety by regime.** Within a configuration, safety is
   structural (intersection). Across a configuration change, quorums can be
-  disjoint, so safety is temporal (the lease). This reproduces known
-  reconfigurable-consensus wisdom (Raft joint consensus, Vertical Paxos) — a sign
-  the mapping is faithful, not invented.
+  disjoint, so intersection guarantees nothing — safety must come from elsewhere.
+  This is the known cross-configuration hazard, and real systems answer it two
+  ways: force overlapping joint majorities across configs (Raft's `C_old,new`),
+  *or* sequence configs with a leader lease (this toy's choice, in the
+  Chubby/Boxwood lineage; Vertical Paxos uses an external reconfiguration
+  authority). Arriving at that fork from "generalize warp-types" is a
+  faithfulness signal, not a novelty claim.
 - **`gradual` boundaries are where structure ends.** `Config::certify` and
   `reconfigure` are runtime-checked edges that mint typed tokens trusted
   structurally inside. `N > E` across a reconfiguration, and true linear
