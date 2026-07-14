@@ -42,7 +42,10 @@
 //! `BftConfig::<0>::new` being called twice with disjoint members). The type
 //! parameter pins the *label*, not the configuration; one-config-per-epoch is
 //! an operator convention, the same root-of-trust hole as `Config::new` one
-//! module over.
+//! module over. And the detection is one-directional: `None` implies reuse,
+//! but reuse with enough accidental overlap mints a well-typed witness whose
+//! numbers answer the wrong configuration (checked against the *receiver's*
+//! `f`). The boundary catches the broken promise it can see, not the promise.
 //!
 //! The evidence character, one rung further down the ladder: rung 2's witness
 //! is a counted majority (exact); rung 3's is sampled laws (probabilistic);
@@ -168,8 +171,13 @@ impl<const E: u64> BftConfig<E> {
     /// Returns `None` unless `n ≥ 4f+1` — the existence bound for masking
     /// quorum systems. (At the bound, a quorum is exactly the `n − f` nodes
     /// that survive `f` crashes: availability and consistency meet.)
+    ///
+    /// Checked as `f ≤ (n−1)/4`, which is wrap-free: the guard itself must
+    /// not trust the operator-declared `f` — `4 * f` overflows on an absurd
+    /// budget, and in a release build the wrapped guard would wave the
+    /// crash majority straight through the Byzantine boundary.
     pub fn new(members: BTreeSet<NodeId>, f: usize) -> Option<Self> {
-        if members.len() > 4 * f {
+        if !members.is_empty() && f <= (members.len() - 1) / 4 {
             Some(BftConfig { members, f })
         } else {
             None
@@ -234,9 +242,11 @@ impl<const E: u64> ByzQuorum<E> {
     ///
     /// For two quorums of the same *configuration*, `Some` is an arithmetic
     /// fact — the masking threshold forces `|overlap| ≥ 2f+1` (this quorum's
-    /// `f`), so the `None` arm is unreachable. `None` therefore detects one
+    /// `f`), so the `None` arm is unreachable. `None` therefore signals one
     /// thing only: **epoch-label reuse** — the other quorum was certified by
-    /// a *different* configuration that happened to wear the same `E`. The
+    /// a *different* configuration that happened to wear the same `E`. (The
+    /// converse does not hold: reused labels with enough accidental overlap
+    /// still mint a witness, checked against the receiver's `f`.) The
     /// type parameter pins the label, not the configuration; the signature
     /// cannot close that hole, so the boundary checks it. (The failure case
     /// cannot be deleted, only relocated — an earlier draft returned
@@ -294,6 +304,12 @@ mod tests {
         assert!(BftConfig::<0>::new(members(9), 2).is_some(), "n=9 = 4f+1");
         // The famous dissemination bound is NOT enough here — no signatures:
         assert!(BftConfig::<0>::new(members(7), 2).is_none(), "n=3f+1 rejected");
+        // The guard itself must not trust f: 4*f wraps at usize::MAX (and at
+        // 2^63 in release, where the wrapped guard admitted crash majorities
+        // before the check went wrap-free — found by a cold review).
+        assert!(BftConfig::<0>::new(members(5), usize::MAX).is_none(), "absurd f rejected");
+        assert!(BftConfig::<0>::new(members(5), 1usize << 63).is_none(), "wrapping f rejected");
+        assert!(BftConfig::<0>::new(BTreeSet::new(), 0).is_none(), "empty config rejected");
     }
 
     #[test]
