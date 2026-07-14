@@ -126,8 +126,9 @@
 //!
 //! ## Still out of scope (parking lot → later versions)
 //!
-//! Deterministic network simulation (`turmoil`, needs a wire protocol first),
-//! benchmarks.
+//! Benchmarks. (The deterministic network simulation formerly parked here
+//! shipped as `tests/wire_sim.rs` — the note's "needs a wire protocol first"
+//! turned out to be the finding, not the blocker.)
 //!
 //! ## Relationship to `warp-types`
 //!
