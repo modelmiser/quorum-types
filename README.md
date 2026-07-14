@@ -151,10 +151,21 @@ splits the weak threshold is denied by the strong one (11).
   denied two `Committed` at the masking threshold, same trace, two constructors.
 - **`gradual` boundaries are where structure ends.** `Config::certify` and
   `reconfigure` are runtime-checked edges that mint typed tokens trusted
-  structurally inside. `N > E` across a reconfiguration, true linear
-  must-consume, and *conflicting `Committed` as a type error* (rather than a
-  construction-time `None`) are *not* expressible on stable Rust — documented as
-  boundary invariants rather than faked.
+  structurally inside. `N > E` across a reconfiguration and true linear
+  must-consume are *not* expressible on stable Rust — documented as boundary
+  invariants rather than faked.
+- **The ladder tops out at a structural ceiling, not a Rust limitation.**
+  *Conflicting `Committed` as a compile error* — the value-level twin of rung 1's
+  cross-epoch `merge` — is impossible, and the impossibility is the capstone
+  result. Two reasons: Rust is not dependently typed, so a runtime vote value
+  cannot be lifted into a const generic (a `compile_fail` witnesses the E0435);
+  and, deeper, the disagreement that constitutes split-brain lives in two
+  *different processes*, while a type system is *per-process* — no single
+  typechecker sees both certificates. So value-uniqueness is `commit_masking`'s
+  construction-time `None`, the maximal enforcement a per-process type system can
+  offer against a cross-process threat. (Cross-participant agreement *can* be
+  typed statically — refined multiparty session types — but only via a prover
+  over an intact session a partition destroys; not by ordinary typechecking.)
 
 ## Layout
 
@@ -178,7 +189,7 @@ tla/quorum.tla           bounded TLA+ model of the failover discipline
 ## Running it
 
 ```sh
-cargo test                 # 78 tests: unit + integration + sim + doctest + compile-fail
+cargo test                 # 80 tests: unit + integration + sim + doctest + compile-fail
 cargo clippy --all-targets -- -D warnings
 
 # The formal model (needs Java + tla2tools.jar):
