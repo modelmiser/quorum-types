@@ -94,8 +94,9 @@
 //! ## Typing the data, not just the membership: [`mod@consistency`]
 //!
 //! The modules above type *who* is in a quorum. [`consistency`] types the
-//! *values*: a small lattice `Local` → `At` → `Agreed` recording how much
-//! consensus a value carries. Its one asymmetry mirrors the whole crate —
+//! *values*: a small lattice recording how much consensus a value carries,
+//! whose moves run `Local` → `At` → `Agreed` (in *strength*, `Agreed` sits
+//! between `Local` and `At`). Its one asymmetry mirrors the whole crate —
 //! moving *up* the lattice ([`Local::commit`](consistency::Local::commit))
 //! requires a [`membership::Quorum`] as evidence, while moving *down*
 //! ([`At::forget_epoch`](consistency::At::forget_epoch)) is free. Acting on an
