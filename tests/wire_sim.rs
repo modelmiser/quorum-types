@@ -268,7 +268,10 @@ async fn elect_and_serve<const N: u64>(
         loop {
             let now = tick();
             match reconfigure::<N>(prior, now, 0b110, Lease::new(now, TTL)) {
-                Ok(t) => break (t, now),
+                Ok(t) => {
+                    reg.lock().unwrap().note(now, "reconfigure permitted: prior lease lapsed");
+                    break (t, now);
+                }
                 Err(FailoverError::LeaseStillValid { until }) => {
                     reg.lock()
                         .unwrap()
