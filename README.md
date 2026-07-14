@@ -88,10 +88,11 @@ majorities to sampled laws (8).
   value *as the resolution*, so it must be committed again. In a pure CRDT the
   merge *is* the truth — that difference is the seam between the two worlds.
   The witness here is the runtime-cheap cousin of what Propel (PLDI 2023)
-  proves statically, and it gates *standing*, not computation: sampling cannot
-  exclude a lawless function the samples missed, and nothing stops code from
-  hand-merging readable values off-path — what is unforgeable is the
-  `Reconciled` badge itself.
+  proves statically, and it gates *standing*, not computation: nothing stops
+  code from hand-merging readable values off-path, and the samples are
+  caller-chosen — certification is self-attestation, so the `Reconciled`
+  badge proves a law-check ran, not that gaming one is impossible. Types
+  verify chains; operators choose roots.
 - **`gradual` boundaries are where structure ends.** `Config::certify` and
   `reconfigure` are runtime-checked edges that mint typed tokens trusted
   structurally inside. `N > E` across a reconfiguration, and true linear
