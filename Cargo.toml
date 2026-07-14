@@ -8,3 +8,9 @@ description = "Feasibility toy: epoch-indexed complement proofs — split-brain 
 publish = false
 
 [dependencies]
+
+# The library is dependency-free; these exist only for the deterministic
+# network simulation in tests/wire_sim.rs (rung 5).
+[dev-dependencies]
+turmoil = "0.7"
+tokio = { version = "1", features = ["time"] }
