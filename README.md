@@ -84,13 +84,14 @@ majorities to sampled laws (8).
 - **A merge is a proposal, not a decision.** Reconciling two divergent
   committed values is evidence-gated like everything else (`Lawful<M>`, a
   witness that the merge's semilattice laws held on samples), but its output
-  re-enters the lattice at the bottom: no quorum witnessed the merged value,
-  so it must be committed again. In a pure CRDT the merge *is* the truth —
-  that difference is the seam between the two worlds. The witness here is the
-  runtime-cheap cousin of what Propel (PLDI 2023) proves statically, and the
-  unnamed-variant caveat is stated in the module docs: sampling excludes
-  *evidence-free* merging, not merging with a lawless function the samples
-  missed.
+  re-enters the lattice at the bottom: no quorum has witnessed the merged
+  value *as the resolution*, so it must be committed again. In a pure CRDT the
+  merge *is* the truth — that difference is the seam between the two worlds.
+  The witness here is the runtime-cheap cousin of what Propel (PLDI 2023)
+  proves statically, and it gates *standing*, not computation: sampling cannot
+  exclude a lawless function the samples missed, and nothing stops code from
+  hand-merging readable values off-path — what is unforgeable is the
+  `Reconciled` badge itself.
 - **`gradual` boundaries are where structure ends.** `Config::certify` and
   `reconfigure` are runtime-checked edges that mint typed tokens trusted
   structurally inside. `N > E` across a reconfiguration, and true linear
