@@ -372,7 +372,7 @@ mod tests {
         }
     }
 
-    /// Idempotent and commutative but not associative under integer division:
+    /// Idempotent and commutative but not associative (even in exact arithmetic — `(a@b)@c = (a+b+2c)/4` vs `a@(b@c) = (2a+b+c)/4`):
     /// `(1 @ 1) @ 5 = 3` but `1 @ (1 @ 5) = 2`.
     struct MidpointMerge;
     impl Merge<i64> for MidpointMerge {
