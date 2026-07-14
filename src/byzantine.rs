@@ -33,7 +33,13 @@
 //! declared fault budget (`n ≥ 4f+1`). [`BftConfig::certify`] is the runtime
 //! boundary that mints a [`ByzQuorum`] — a certificate **distinct in type**
 //! from the crash [`Quorum`](crate::membership::Quorum), so an API demanding
-//! Byzantine evidence cannot be handed a counted majority. Two quorums of the
+//! Byzantine evidence cannot be handed a crash certificate. The refusal is by
+//! *fault model*, not strength: `f` is a runtime field, invisible to the
+//! signature, so a config declared at `f = 0` mints certificates that are
+//! semantically crash majorities wearing this type — a callee wanting actual
+//! masking strength must also inspect [`ByzQuorum::fault_budget`]. (Lifting
+//! the budget into the type is Sui's `const STRONG_THRESHOLD` move; this toy
+//! keeps it a field.) Two quorums of the
 //! same *configuration* always overlap in `≥ 2f+1` nodes, so
 //! [`ByzQuorum::intersect`] checks that bound once and mints an [`Overlap`]
 //! witness; for honestly-labelled quorums the `None` arm is unreachable
