@@ -91,10 +91,20 @@
 //! (quorum intersection); across an epoch, quorums can be disjoint, so safety is
 //! *temporal* (the lease). Each covers exactly where the other fails.
 //!
+//! ## Typing the data, not just the membership: [`mod@consistency`]
+//!
+//! The modules above type *who* is in a quorum. [`consistency`] types the
+//! *values*: a small lattice `Local` → `At` → `Agreed` recording how much
+//! consensus a value carries. Its one asymmetry mirrors the whole crate —
+//! moving *up* the lattice ([`Local::commit`](consistency::Local::commit))
+//! requires a [`membership::Quorum`] as evidence, while moving *down*
+//! ([`At::forget_epoch`](consistency::At::forget_epoch)) is free. Acting on an
+//! uncommitted `Local` where a decision is required is a compile error.
+//!
 //! ## Still out of scope (parking lot → later versions)
 //!
-//! The consistency-lattice value types (`Agreed`/`Local`/`At`), deterministic
-//! network simulation (`turmoil`, needs a wire protocol first), benchmarks, CI.
+//! Deterministic network simulation (`turmoil`, needs a wire protocol first),
+//! benchmarks, CI.
 //!
 //! ## Relationship to `warp-types`
 //!
@@ -106,6 +116,7 @@
 
 #![forbid(unsafe_code)]
 
+pub mod consistency;
 pub mod failover;
 pub mod membership;
 pub mod reconfig;
