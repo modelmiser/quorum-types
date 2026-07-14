@@ -1,5 +1,7 @@
 # quorum-types
 
+[![CI](https://github.com/modelmiser/quorum-types/actions/workflows/ci.yml/badge.svg)](https://github.com/modelmiser/quorum-types/actions/workflows/ci.yml)
+
 *Can the compile-time safety of [`warp-types`](https://github.com/modelmiser/warp-types)
 survive the move from a GPU warp to a distributed system?*
 
@@ -39,11 +41,13 @@ that some safety is structural while some is irreducibly temporal.
 | 4 | `tests/partition_heal.rs` | Does the real API hold across a failure cycle? | A deterministic crash→partition→heal sim keeps `NoSplitBrain` throughout, delegating the decision to the real `reconfigure`. |
 | 5 | `membership.rs` | How does membership go dynamic and unbounded? | By *flipping the set relation*: warp complements are **disjoint**; distributed quorums must **intersect**. The type stays relational; the members become a runtime set. |
 | 6 | `reconfig.rs` | Are the temporal and structural guards redundant? | **No** — they split safety by regime. *Within* an epoch, intersection. *Across* an epoch, quorums can be disjoint, so only the lease is safe. |
+| 7 | `consistency.rs` | Can the *data* be typed, not just the membership? | A value's consensus strength becomes a lattice `Local` → `At<T,N>` → `Agreed<T>`. Moving *up* requires a `&Quorum` as evidence; moving *down* is free — so a committed value is *unforgeable*, and acting on an uncommitted one is a type error. |
 
 Read top to bottom, that is the whole story: a structural guarantee (1), a proof
 that it is not enough (2), the runtime guard that completes it (3), evidence it
-works end-to-end (4), the generalization to real membership (5), and the
-composition showing the two guards are complementary (6).
+works end-to-end (4), the generalization to real membership (5), the composition
+showing the two guards are complementary (6), and finally the same discipline
+turned on the *values* rather than the membership (7).
 
 ## Key findings
 
@@ -68,6 +72,12 @@ composition showing the two guards are complementary (6).
   Chubby/Boxwood lineage; Vertical Paxos uses an external reconfiguration
   authority). Arriving at that fork from "generalize warp-types" is a
   faithfulness signal, not a novelty claim.
+- **The value lattice is asymmetric: up is quorum-gated, down is free.** Consensus
+  strength is itself a type — `Local` (a proposal) below `At<T,N>`/`Agreed<T>`
+  (committed). The only move *up* consumes a `Local` and demands a `&Quorum` as
+  evidence, so a committed value is *unforgeable*; weakening back *down* needs
+  nothing, because discarding a guarantee is always sound. "Act only on decided
+  values" is then a compile error, not a runtime flag anyone can set.
 - **`gradual` boundaries are where structure ends.** `Config::certify` and
   `reconfigure` are runtime-checked edges that mint typed tokens trusted
   structurally inside. `N > E` across a reconfiguration, and true linear
@@ -81,6 +91,7 @@ src/lib.rs               base: Quorum<const E, S> — compile-time epoch + compl
 src/failover.rs          gap #1: Lease, reconfigure — runtime temporal guard
 src/membership.rs        gap #2: Config/Quorum<const E> — dynamic intersecting quorums
 src/reconfig.rs          unified: LeasedQuorum — both guards composed
+src/consistency.rs       value lattice: Local/At/Agreed — consensus strength as a type
 tests/partition_heal.rs  deterministic crash/partition/heal simulation
 tla/quorum.tla           bounded TLA+ model of the failover discipline
     quorum_guarded.cfg   lease guard on  — invariants hold
@@ -90,7 +101,7 @@ tla/quorum.tla           bounded TLA+ model of the failover discipline
 ## Running it
 
 ```sh
-cargo test                 # 27 tests: unit + integration + doctest + compile-fail
+cargo test                 # 35 tests: unit + integration + doctest + compile-fail
 cargo clippy --all-targets -- -D warnings
 
 # The formal model (needs Java + tla2tools.jar):
@@ -102,10 +113,9 @@ java -cp tla2tools.jar tlc2.TLC -deadlock -config tla/quorum_noguard.cfg tla/quo
 
 This is a research feasibility study, not a consensus library. It does **not**
 provide: a network/transport layer, a message protocol, real-time leases, more
-than two-way static splits, Byzantine tolerance, or the consistency-lattice value
-types (`Agreed`/`Local`/`At`). The TLA+ model is bounded (`MaxEpoch = 2`, two
-halves) and the property tests cover small domains. Treat every result as
-"holds in the checked domain," not "proven in general."
+than two-way static splits, or Byzantine tolerance. The TLA+ model is bounded
+(`MaxEpoch = 2`, two halves) and the property tests cover small domains. Treat
+every result as "holds in the checked domain," not "proven in general."
 
 ## Relationship to warp-types
 
