@@ -278,7 +278,8 @@ async fn elect_and_serve<const N: u64>(
                         .note(now, &format!("reconfigure refused: prior lease valid until t={until}"));
                     // Wait out the reported expiry plus two ticks of slack —
                     // the stand-in for bounded clock skew between hosts.
-                    sleep(Duration::from_secs(until.saturating_sub(now) + 2)).await;
+                    // Saturating: `until` is wire-derived and may be u64::MAX.
+                    sleep(Duration::from_secs(until.saturating_sub(now).saturating_add(2))).await;
                 }
             }
         }
@@ -433,4 +434,11 @@ fn same_seed_reproduces_the_identical_trace() {
     let b = run_scenario(true, 42);
     assert_eq!(a.trace, b.trace, "same seed diverged: determinism buy-in violated");
     assert_eq!(a.violations, b.violations);
+    // The guarded run has no violations, so its equality check alone would be
+    // vacuous for counterexamples — cover a run that actually produces one.
+    let c = run_scenario(false, 42);
+    let d = run_scenario(false, 42);
+    assert_eq!(c.trace, d.trace, "unguarded twin diverged: counterexamples must reproduce");
+    assert_eq!(c.violations, d.violations);
+    assert!(!c.violations.is_empty(), "counterexample determinism check ran vacuously");
 }
