@@ -140,6 +140,7 @@
 
 #![forbid(unsafe_code)]
 
+pub mod attest;
 pub mod byzantine;
 pub mod consistency;
 pub mod failover;

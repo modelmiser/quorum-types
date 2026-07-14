@@ -200,6 +200,12 @@ impl<const E: u64> BftConfig<E> {
         self.f
     }
 
+    /// Whether `id` is a member of this configuration. A vote from a non-member
+    /// is not evidence, so [`attest`](crate::attest::attest) drops it.
+    pub fn is_member(&self, id: NodeId) -> bool {
+        self.members.contains(&id)
+    }
+
     /// The masking quorum threshold `⌈(n+2f+1)/2⌉`.
     ///
     /// Two subsets of this size intersect in `≥ 2q − n ≥ 2f+1` members. At
