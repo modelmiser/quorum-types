@@ -1,0 +1,41 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Read-only: the workflow only builds and tests; it never writes to the repo.
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  test:
+    name: test + clippy (stable)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      # `cargo test` runs the unit, integration, AND doctests — including the
+      # `compile_fail` doctests that are the crate's negative proofs. Guard them:
+      # a compile_fail that silently starts compiling is a lost guarantee.
+      - run: cargo test
+      - run: cargo clippy --all-targets -- -D warnings
+      # NOTE: deliberately no `cargo fmt --check` — this crate uses a compact
+      # hand-style (single-line struct literals) that is not rustfmt-default.
+
+  msrv:
+    name: build @ MSRV 1.85
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # Validates the `rust-version = "1.85"` floor declared in Cargo.toml
+      # (edition 2024 requires 1.85). Build only — doctest error text can drift
+      # across compiler versions, so the full suite runs on stable above.
+      - uses: dtolnay/rust-toolchain@1.85.0
+      - run: cargo build --all-targets
