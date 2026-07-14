@@ -3,7 +3,7 @@ INSIGHTS.md
 INSIGHTS/
 DEVLOG.md
 DEVLOG/
-HYPOTHESIS.md
+HYPOTHESIS*.md
 
 # TLC model-checker artifacts (any directory — TLC writes to CWD)
 states/

@@ -113,6 +113,17 @@
 //! The merged result re-enters the lattice at the **bottom**: a merge is a
 //! new proposal, and only a quorum lifts it back up.
 //!
+//! ## Byzantine evidence: [`mod@byzantine`]
+//!
+//! Everything above assumes nodes fail by *stopping*. [`byzantine`] asks what
+//! survives when they fail by **lying**: the crash majority's one-node
+//! intersection is worthless if that node is the liar, so the certificate
+//! changes — a masking quorum (`n ≥ 4f+1`, overlap `≥ 2f+1`; Malkhi–Reiter)
+//! whose [`ByzQuorum`](byzantine::ByzQuorum) is a *distinct type* from
+//! [`membership::Quorum`]. Supplying crash evidence where Byzantine evidence
+//! is required is a compile error. The fault budget `f` is an operator-declared
+//! axiom the types propagate but cannot check.
+//!
 //! ## Still out of scope (parking lot → later versions)
 //!
 //! Deterministic network simulation (`turmoil`, needs a wire protocol first),
@@ -128,6 +139,7 @@
 
 #![forbid(unsafe_code)]
 
+pub mod byzantine;
 pub mod consistency;
 pub mod failover;
 pub mod membership;

@@ -43,14 +43,17 @@ that some safety is structural while some is irreducibly temporal.
 | 6 | `reconfig.rs` | Are the temporal and structural guards redundant? | **No** — they split safety by regime. *Within* an epoch, intersection. *Across* an epoch, quorums can be disjoint, so only the lease is safe. |
 | 7 | `consistency.rs` | Can the *data* be typed, not just the membership? | A value's consensus strength becomes a lattice `Local` → `At<T,E>` → `Agreed<T>`. Moving *up* requires a `&Quorum` as evidence; moving *down* is free — so a committed value is *unforgeable*, and acting on an uncommitted one is a type error. |
 | 8 | `reconcile.rs` | Can the *merge* of divergent committed values be typed? | **Partly.** `Diverged` → `Reconciled` is an evidence-gated typestate: the merge demands a `Lawful` witness minted by property-checking the merge function's semilattice laws at a runtime boundary (*sampled evidence, not proof* — [Propel](https://dl.acm.org/doi/10.1145/3591276) does this soundly, statically). And the merged result re-enters the lattice at the **bottom**: in a consensus system a merge is a new proposal, not a decision. |
+| 9 | `byzantine.rs` | Does the evidence discipline survive nodes that **lie**? | **Yes, with a declared axiom.** A masking quorum (`n ≥ 4f+1`, overlap `≥ 2f+1` — [Malkhi–Reiter](https://dl.acm.org/doi/10.1145/258533.258650)) is a *distinct certificate type*: crash evidence where Byzantine evidence is required is a compile error. The fault budget `f` is operator-declared — the types propagate its consequences but cannot check it. |
 
 Read top to bottom, that is the whole story: a structural guarantee (1), a proof
 that it is not enough (2), the runtime guard that completes it (3), evidence it
 works end-to-end (4), the generalization to real membership (5), the composition
 showing the two guards are complementary (6), the same discipline turned on the
-*values* rather than the membership (7), and finally the merge of values that
+*values* rather than the membership (7), the merge of values that
 disagree — where the discipline survives but its evidence weakens from counted
-majorities to sampled laws (8).
+majorities to sampled laws (8), and finally the adversarial fault model, where
+the count itself must mask liars and the whole guarantee becomes conditional on
+a trust declaration (9).
 
 ## Key findings
 
@@ -93,6 +96,19 @@ majorities to sampled laws (8).
   caller-chosen — certification is self-attestation, so the `Reconciled`
   badge proves a law-check ran, not that gaming one is impossible. Types
   verify chains; operators choose roots.
+- **Byzantine evidence is a different *type*, not a bigger number.** Under crash
+  faults one shared node proves continuity, because nodes do not lie. Under
+  Byzantine faults the reader must out-*vote* liars, and without signatures
+  that takes a masking quorum: `n ≥ 4f+1`, quorums of `⌈(n+2f+1)/2⌉`, any two
+  overlapping in `≥ 2f+1` nodes so the `≥ f+1` correct ones outnumber all `f`
+  possible liars (Malkhi–Reiter, STOC '97 — the famous `3f+1` is the
+  *dissemination* regime and assumes self-verifying data). `ByzQuorum` is
+  therefore deliberately not interchangeable with `Quorum`; the intersection
+  lemma becomes *infallible* (an `Overlap` witness, not an `Option`) while its
+  meaning weakens: everything it promises is conditional on the operator's
+  declared fault budget `f`, an axiom no type can check. The third instance of
+  "types verify chains; operators choose roots" — and at `f = 0` the masking
+  threshold degenerates exactly to the crash majority.
 - **`gradual` boundaries are where structure ends.** `Config::certify` and
   `reconfigure` are runtime-checked edges that mint typed tokens trusted
   structurally inside. `N > E` across a reconfiguration, and true linear
@@ -108,6 +124,7 @@ src/membership.rs        gap #2: Config/Quorum<const E> — dynamic intersecting
 src/reconfig.rs          unified: LeasedQuorum — both guards composed
 src/consistency.rs       value lattice: Local/At/Agreed — consensus strength as a type
 src/reconcile.rs         divergence: Diverged/Lawful/Reconciled — evidence-gated merge
+src/byzantine.rs         lying nodes: BftConfig/ByzQuorum/Overlap — masking quorums
 tests/partition_heal.rs  deterministic crash/partition/heal simulation
 tla/quorum.tla           bounded TLA+ model of the failover discipline
     quorum_guarded.cfg   lease guard on  — invariants hold
@@ -117,7 +134,7 @@ tla/quorum.tla           bounded TLA+ model of the failover discipline
 ## Running it
 
 ```sh
-cargo test                 # 47 tests: unit + integration + doctest + compile-fail
+cargo test                 # 57 tests: unit + integration + doctest + compile-fail
 cargo clippy --all-targets -- -D warnings
 
 # The formal model (needs Java + tla2tools.jar):
