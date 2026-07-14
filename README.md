@@ -44,6 +44,7 @@ that some safety is structural while some is irreducibly temporal.
 | 7 | `consistency.rs` | Can the *data* be typed, not just the membership? | A value's consensus strength becomes a lattice `Local` → `At<T,E>` → `Agreed<T>`. Moving *up* requires a `&Quorum` as evidence; moving *down* is free — so a committed value is *unforgeable*, and acting on an uncommitted one is a type error. |
 | 8 | `reconcile.rs` | Can the *merge* of divergent committed values be typed? | **Partly.** `Diverged` → `Reconciled` is an evidence-gated typestate: the merge demands a `Lawful` witness minted by property-checking the merge function's semilattice laws at a runtime boundary (*sampled evidence, not proof* — [Propel](https://dl.acm.org/doi/10.1145/3591276) does this soundly, statically). And the merged result re-enters the lattice at the **bottom**: in a consensus system a merge is a new proposal, not a decision. |
 | 9 | `byzantine.rs` | Does the evidence discipline survive nodes that **lie**? | **Yes, with a declared axiom.** A masking quorum (`n ≥ 4f+1`, overlap `≥ 2f+1` — [Malkhi–Reiter](https://dl.acm.org/doi/10.1145/258533.258650)) is a *distinct certificate type*: crash evidence where Byzantine evidence is required is a compile error. The fault budget `f` is operator-declared — the types propagate its consequences but cannot check it. |
+| 10 | `tests/wire_sim.rs` | Does the discipline survive an actual **wire**? | **Per process, yes — and the wire is a named boundary.** A [turmoil](https://github.com/tokio-rs/turmoil)-simulated cluster drives the real API over UDP through crash → partition → heal. A `const E: u64` cannot be lifted from runtime bytes, so one `promote()` function and one visible `match` (runtime data *selecting among* compiled monomorphizations) are the only crossing — and a twin that bypasses the lease guard split-brains under the same seed. |
 
 Read top to bottom, that is the whole story: a structural guarantee (1), a proof
 that it is not enough (2), the runtime guard that completes it (3), evidence it
@@ -51,9 +52,11 @@ works end-to-end (4), the generalization to real membership (5), the composition
 showing the two guards are complementary (6), the same discipline turned on the
 *values* rather than the membership (7), the merge of values that
 disagree — where the discipline survives but its evidence weakens from counted
-majorities to sampled laws (8), and finally the adversarial fault model, where
+majorities to sampled laws (8), the adversarial fault model, where
 the count itself must mask liars and the whole guarantee becomes conditional on
-a trust declaration (9).
+a trust declaration (9), and finally the network itself, where the type-level
+epoch is honestly a per-process property and everything hinges on one
+deserialization boundary (10).
 
 ## Key findings
 
@@ -113,6 +116,22 @@ a trust declaration (9).
   no type can check. The third instance of "types verify chains; operators
   choose roots" — and at `f = 0` the masking threshold degenerates exactly to
   the crash majority.
+- **The wire is where const generics die — what survives is a boundary.** Every
+  certificate here is indexed by `const E: u64`, and no runtime `u64` parsed
+  off a socket can become one: there is no `match` over 2^64 monomorphizations.
+  The deterministic network sim (`tests/wire_sim.rs`, three turmoil hosts
+  exchanging raw datagrams) shows what survives: *within* each process the
+  discipline is intact — election, certification, and failover all run through
+  the typed API, monomorphic in the epoch — and the runtime epoch does exactly
+  one thing, *select* which compiled epoch space to enter, at one visible
+  `match`. All trust concentrates in the single `promote()` that turns bytes
+  into typed values (a lying peer can announce a shorter lease; the types
+  verify counting after promotion, never that the bytes told the truth) — the
+  fourth root in the arc's refrain, after membership, samples, and `f`. The
+  sim has teeth: an unguarded twin that mints authority through the `genesis`
+  escape hatch split-brains at the exact tick the TLA+ counterexample
+  predicts, with the partition delivered as a network event rather than a
+  bookkeeping flag, and the whole trace is seed-reproducible byte for byte.
 - **`gradual` boundaries are where structure ends.** `Config::certify` and
   `reconfigure` are runtime-checked edges that mint typed tokens trusted
   structurally inside. `N > E` across a reconfiguration, and true linear
@@ -130,6 +149,7 @@ src/consistency.rs       value lattice: Local/At/Agreed — consensus strength a
 src/reconcile.rs         divergence: Diverged/Lawful/Reconciled — evidence-gated merge
 src/byzantine.rs         lying nodes: BftConfig/ByzQuorum/Overlap — masking quorums
 tests/partition_heal.rs  deterministic crash/partition/heal simulation
+tests/wire_sim.rs        the same cycle over a simulated network (turmoil)
 tla/quorum.tla           bounded TLA+ model of the failover discipline
     quorum_guarded.cfg   lease guard on  — invariants hold
     quorum_noguard.cfg   lease guard off — split-brain counterexample
@@ -138,7 +158,7 @@ tla/quorum.tla           bounded TLA+ model of the failover discipline
 ## Running it
 
 ```sh
-cargo test                 # 58 tests: unit + integration + doctest + compile-fail
+cargo test                 # 61 tests: unit + integration + sim + doctest + compile-fail
 cargo clippy --all-targets -- -D warnings
 
 # The formal model (needs Java + tla2tools.jar):
