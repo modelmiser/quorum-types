@@ -7,8 +7,9 @@
 //! than a bookkeeping flag. The safety decision is still delegated to the real
 //! library — [`reconfigure`] — and the harness only respects its `Result`.
 //!
-//! **The promotion boundary.** Every certificate in this crate is indexed by
-//! `const E: u64`, and a const generic cannot be lifted from runtime bytes.
+//! **The promotion boundary.** Every quorum certificate in this crate is
+//! indexed by `const E: u64`, and a const generic cannot be lifted from
+//! runtime bytes.
 //! [`promote`] is the single place where wire bytes become typed values, and
 //! the epoch crossing happens at one visible `match` in [`candidate`]: a
 //! runtime `u64` *chooses among monomorphizations compiled in advance* (the
