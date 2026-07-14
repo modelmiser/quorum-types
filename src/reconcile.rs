@@ -46,8 +46,15 @@
 //! re-commit the result through a real quorum. What the types exclude is
 //! narrower and sharper — **no `Reconciled` exists without a certified
 //! witness**: the badge of lawful reconciliation is unforgeable even where
-//! the computation is free. Propel/VeriFx make the law half sound statically
-//! — this toy prices the cheap version and says so.
+//! the computation is free. And the samples are **caller-chosen**, so
+//! certification is self-attestation: a constant merge certified over the one
+//! sample it returns passes all three laws trivially and launders any value
+//! into a `Reconciled`. The witness proves *which* check ran — auditable
+//! evidence — not that the check was adversarially meaningful. This is
+//! [`Config::new`](crate::membership::Config::new)'s root-of-trust hole one
+//! rung up: types verify chains; operators choose roots. Propel/VeriFx make
+//! the law half sound statically — this toy prices the cheap version and
+//! says so.
 //!
 //! ## The whole loop
 //!
@@ -176,7 +183,9 @@ pub trait Merge<T> {
 }
 
 /// The semilattice law a candidate merge violated on the samples, reported by
-/// [`Lawful::certify`]. Checked cheapest-first.
+/// [`Lawful::certify`]. Checked cheapest-first (idempotence → commutativity →
+/// associativity); a multi-law violator reports the *first* — the order is
+/// contractual, and a test pins it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum LawViolation {
     /// No samples were provided — zero checks run is not evidence.
@@ -214,7 +223,10 @@ where
     /// through its certificate, so nothing uncertified can ever *produce* a
     /// [`Reconciled`]. (It can still touch values — the gate is on standing,
     /// not computation; see the module docs.) The empty sample set is
-    /// rejected: zero checks run is not evidence.
+    /// rejected: zero checks run is not evidence. The samples are the
+    /// caller's choice — see the module docs' trust model: this is
+    /// self-attestation, auditable but gameable by a caller who controls
+    /// both the merge and the samples.
     pub fn certify(merge: M, samples: &[T]) -> Result<Self, LawViolation> {
         if samples.is_empty() {
             return Err(LawViolation::NoSamples);
@@ -368,6 +380,16 @@ mod tests {
         }
     }
 
+    /// Violates all three laws — exists to pin the contractual check order,
+    /// which single-law violators cannot (they report the same law under any
+    /// order).
+    struct SubMerge;
+    impl Merge<i64> for SubMerge {
+        fn merge(&self, a: &i64, b: &i64) -> i64 {
+            a - b
+        }
+    }
+
     const SAMPLES: [i64; 5] = [0, 1, 2, 5, -3];
 
     fn agreed(value: i64) -> Agreed<i64> {
@@ -379,6 +401,14 @@ mod tests {
     #[test]
     fn max_certifies_over_samples() {
         assert!(Lawful::certify(MaxMerge, &SAMPLES).is_ok());
+    }
+
+    #[test]
+    fn a_multi_law_violator_reports_the_first_checked_law() {
+        // Subtraction breaks idempotence, commutativity, AND associativity;
+        // the verdict pins the check order. Reorder the checks and this test
+        // goes red — the single-law controls above would all stay green.
+        assert_eq!(Lawful::certify(SubMerge, &SAMPLES).err(), Some(LawViolation::Idempotence));
     }
 
     #[test]
