@@ -115,7 +115,7 @@ tla/quorum.tla           bounded TLA+ model of the failover discipline
 ## Running it
 
 ```sh
-cargo test                 # 45 tests: unit + integration + doctest + compile-fail
+cargo test                 # 46 tests: unit + integration + doctest + compile-fail
 cargo clippy --all-targets -- -D warnings
 
 # The formal model (needs Java + tla2tools.jar):

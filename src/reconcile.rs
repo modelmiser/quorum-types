@@ -38,11 +38,16 @@
 //!
 //! ## Soundness disclaimer
 //!
-//! [`Lawful`] is *sampled evidence*, not proof. Property-checking cannot
-//! establish a ∀-law, so the type system excludes **evidence-free** merging;
-//! it cannot exclude merging with a lawless `M` whose violations the samples
-//! missed. Propel/VeriFx close that gap statically — this toy prices the
-//! cheap version and says so.
+//! [`Lawful`] is *sampled evidence*, not proof — and it gates **standing**,
+//! not **computation**. Property-checking cannot establish a ∀-law, so the
+//! witness cannot exclude a lawless `M` whose violations the samples missed.
+//! And no typestate can stop out-of-band computation over readable values:
+//! code can always read two `Agreed`s, hand-merge them with anything, and
+//! re-commit the result through a real quorum. What the types exclude is
+//! narrower and sharper — **no `Reconciled` exists without a certified
+//! witness**: the badge of lawful reconciliation is unforgeable even where
+//! the computation is free. Propel/VeriFx make the law half sound statically
+//! — this toy prices the cheap version and says so.
 //!
 //! ## The whole loop
 //!
@@ -174,6 +179,8 @@ pub trait Merge<T> {
 /// [`Lawful::certify`]. Checked cheapest-first.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum LawViolation {
+    /// No samples were provided — zero checks run is not evidence.
+    NoSamples,
     /// `merge(a, a) != a` for some sample `a`.
     Idempotence,
     /// `merge(a, b) != merge(b, a)` for some samples `a, b`.
@@ -204,9 +211,14 @@ where
     /// a witness only if no counterexample is found.
     ///
     /// The witness *holds* the merge function — a certified merge is spent
-    /// through its certificate, so an uncertified merge cannot reach a
-    /// [`Diverged`] at all.
+    /// through its certificate, so nothing uncertified can ever *produce* a
+    /// [`Reconciled`]. (It can still touch values — the gate is on standing,
+    /// not computation; see the module docs.) The empty sample set is
+    /// rejected: zero checks run is not evidence.
     pub fn certify(merge: M, samples: &[T]) -> Result<Self, LawViolation> {
+        if samples.is_empty() {
+            return Err(LawViolation::NoSamples);
+        }
         for a in samples {
             if merge.merge(a, a) != *a {
                 return Err(LawViolation::Idempotence);
@@ -245,8 +257,8 @@ pub enum Detection<T> {
 }
 
 /// Two committed values known to disagree. **Bottom of the reconciliation
-/// path** — the analogue of [`Local`] one module over: a fact you cannot act
-/// on until evidence lifts it.
+/// path** — the analogue of [`Local`] one module over: a conflict you cannot
+/// *resolve* until evidence lifts it.
 ///
 /// Move-only. The only way out is [`reconcile`](Diverged::reconcile), which
 /// consumes the conflict.
@@ -367,6 +379,12 @@ mod tests {
     #[test]
     fn max_certifies_over_samples() {
         assert!(Lawful::certify(MaxMerge, &SAMPLES).is_ok());
+    }
+
+    #[test]
+    fn empty_samples_mint_nothing() {
+        // Even a genuinely lawful merge earns no witness from zero checks.
+        assert_eq!(Lawful::certify(MaxMerge, &[]).err(), Some(LawViolation::NoSamples));
     }
 
     #[test]
