@@ -24,7 +24,7 @@
 //! dissemination/masking split from [`byzantine`](crate::byzantine), surfaced
 //! here as a value-level fact and demonstrated in the tests. Uniqueness needs
 //! the *masking* threshold [`BftConfig::threshold`] and reduces to
-//! [`Overlap`](crate::byzantine::Overlap) — the next rung, not this one.
+//! [`Overlap`] — the next rung, not this one.
 //!
 //! ## What stays a declared seam
 //!
@@ -193,7 +193,7 @@ pub fn attest<T: Eq, const E: u64>(
 /// same epoch intersect in `≥ 2f+1` members, of which `≥ f+1` are correct
 /// ([`Overlap::min_correct`]) — and a correct member votes once. So two
 /// `Committed<T, E>` cannot carry *different* values without a set of liars
-/// larger than the declared `f`. The reduction is [`agreement_witness`], and it
+/// larger than the declared `f`. The reduction is [`Self::agreement_witness`], and it
 /// is the value-level analogue of the split-brain-unrepresentable property from
 /// rung 1: no external prover, just the intersection an `Overlap` already
 /// certifies.

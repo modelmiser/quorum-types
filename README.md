@@ -45,6 +45,7 @@ that some safety is structural while some is irreducibly temporal.
 | 8 | `reconcile.rs` | Can the *merge* of divergent committed values be typed? | **Partly.** `Diverged` → `Reconciled` is an evidence-gated typestate: the merge demands a `Lawful` witness minted by property-checking the merge function's semilattice laws at a runtime boundary (*sampled evidence, not proof* — [Propel](https://dl.acm.org/doi/10.1145/3591276) does this soundly, statically). And the merged result re-enters the lattice at the **bottom**: in a consensus system a merge is a new proposal, not a decision. |
 | 9 | `byzantine.rs` | Does the evidence discipline survive nodes that **lie**? | **Yes, with a declared axiom.** A masking quorum (`n ≥ 4f+1`, overlap `≥ 2f+1` — [Malkhi–Reiter](https://dl.acm.org/doi/10.1145/258533.258650)) is a *distinct certificate type*: crash evidence where Byzantine evidence is required is a compile error. The fault budget `f` is operator-declared — the types propagate its consequences but cannot check it. |
 | 10 | `tests/wire_sim.rs` | Does the discipline survive an actual **wire**? | **Per process, yes — and the wire is a named boundary.** A [turmoil](https://github.com/tokio-rs/turmoil)-simulated cluster drives the real API over UDP through crash → partition → heal. A `const E: u64` cannot be lifted from runtime bytes, so one `promote()` function and one visible `match` (runtime data *selecting among* compiled monomorphizations) are the only crossing — and a twin that bypasses the lease guard split-brains under the same seed. |
+| 11 | `attest.rs` | Can a *value* be believed only when nodes **corroborate** it? | **Yes, in two tiers.** The crash lattice (7) discards its quorum witness (`commit`'s `_witness` is unused); under Byzantine faults it becomes load-bearing. `Attested<T,E>` has no `value: T` parameter and no constructor, so a value can only inhabit it if `f+1` distinct members voted for it — value-blindness is unrepresentable. `f+1` buys *existence*, not *uniqueness*; `Committed<T,E>` at the masking threshold buys uniqueness, reduced to the rung-9 `Overlap` at construction time. `tests/attest_wire.rs`: one equivocating host splits at `f+1`, is denied at the masking threshold. |
 
 Read top to bottom, that is the whole story: a structural guarantee (1), a proof
 that it is not enough (2), the runtime guard that completes it (3), evidence it
@@ -54,9 +55,12 @@ showing the two guards are complementary (6), the same discipline turned on the
 disagree — where the discipline survives but its evidence weakens from counted
 majorities to sampled laws (8), the adversarial fault model, where
 the count itself must mask liars and the whole guarantee becomes conditional on
-a trust declaration (9), and finally the network itself, where the type-level
+a trust declaration (9), the network itself, where the type-level
 epoch is honestly a per-process property and everything hinges on one
-deserialization boundary (10).
+deserialization boundary (10), and finally the values that cross that wire,
+believable only when `f+1` distinct nodes corroborate them and *uniquely*
+believable only at the masking threshold — the same equivocating host that
+splits the weak threshold is denied by the strong one (11).
 
 ## Key findings
 
@@ -132,11 +136,25 @@ deserialization boundary (10).
   escape hatch split-brains at the exact tick the TLA+ counterexample
   predicts, with the partition delivered as a network event rather than a
   bookkeeping flag, and the whole trace is seed-reproducible byte for byte.
+- **A witness changes weight with the fault model.** The value lattice commits
+  with `commit(self, _witness: &Quorum<E>)` — the witness is *discarded*, because
+  under crash faults an honest majority's mere existence is enough. Under
+  Byzantine faults that is forgeable, so `attest` has **no `value: T` parameter**
+  (the value is extracted from `f+1` votes) and `Attested<T,E>` has no
+  constructor: value-blindness is unrepresentable, not a check to remember.
+  `f+1` buys *existence* (≥1 correct voucher) but not *uniqueness* — two
+  conflicting values can each clear it. `Committed<T,E>` at the masking threshold
+  buys uniqueness, and the reduction is *ordinary typechecking at construction
+  time*, not a proof obligation: two masking quorums meet in ≥ `f+1` correct
+  members (the rung-9 `Overlap`), who each vote once. `tests/attest_wire.rs` runs
+  it as a sign-flip — one equivocating host splits two `Attested` at `f+1` and is
+  denied two `Committed` at the masking threshold, same trace, two constructors.
 - **`gradual` boundaries are where structure ends.** `Config::certify` and
   `reconfigure` are runtime-checked edges that mint typed tokens trusted
-  structurally inside. `N > E` across a reconfiguration, and true linear
-  must-consume, are *not* expressible on stable Rust — documented as boundary
-  invariants rather than faked.
+  structurally inside. `N > E` across a reconfiguration, true linear
+  must-consume, and *conflicting `Committed` as a type error* (rather than a
+  construction-time `None`) are *not* expressible on stable Rust — documented as
+  boundary invariants rather than faked.
 
 ## Layout
 
@@ -148,8 +166,10 @@ src/reconfig.rs          unified: LeasedQuorum — both guards composed
 src/consistency.rs       value lattice: Local/At/Agreed — consensus strength as a type
 src/reconcile.rs         divergence: Diverged/Lawful/Reconciled — evidence-gated merge
 src/byzantine.rs         lying nodes: BftConfig/ByzQuorum/Overlap — masking quorums
+src/attest.rs            attested values: Vote/Attested/Committed — corroboration as a type
 tests/partition_heal.rs  deterministic crash/partition/heal simulation
 tests/wire_sim.rs        the same cycle over a simulated network (turmoil)
+tests/attest_wire.rs     an equivocating host: existence splits, masking denies it
 tla/quorum.tla           bounded TLA+ model of the failover discipline
     quorum_guarded.cfg   lease guard on  — invariants hold
     quorum_noguard.cfg   lease guard off — split-brain counterexample
@@ -158,7 +178,7 @@ tla/quorum.tla           bounded TLA+ model of the failover discipline
 ## Running it
 
 ```sh
-cargo test                 # 62 tests: unit + integration + sim + doctest + compile-fail
+cargo test                 # 78 tests: unit + integration + sim + doctest + compile-fail
 cargo clippy --all-targets -- -D warnings
 
 # The formal model (needs Java + tla2tools.jar):

@@ -124,6 +124,19 @@
 //! is required is a compile error. The fault budget `f` is an operator-declared
 //! axiom the types propagate but cannot check.
 //!
+//! ## Attested values: [`mod@attest`]
+//!
+//! [`byzantine`] types *who* may be believed; [`consistency`] types a value's
+//! consensus strength but commits with the witness **discarded** (`_witness`) —
+//! sound under crash faults, forgeable under Byzantine ones. [`attest`] binds
+//! the two: [`Attested`](attest::Attested) has no caller-supplied value and no
+//! constructor, so a value inhabits it only when `f+1` distinct members voted
+//! for it — value-blindness is unrepresentable. `f+1` buys *existence*, not
+//! *uniqueness*; [`Committed`](attest::Committed) at the masking threshold buys
+//! uniqueness, reduced to [`Overlap`](byzantine::Overlap) at construction time
+//! rather than in a prover. `tests/attest_wire.rs` drives it under an
+//! equivocating host: existence splits, the masking threshold denies the split.
+//!
 //! ## Still out of scope (parking lot → later versions)
 //!
 //! Benchmarks. (The deterministic network simulation formerly parked here
