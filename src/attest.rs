@@ -197,6 +197,38 @@ pub fn attest<T: Eq, const E: u64>(
 /// is the value-level analogue of the split-brain-unrepresentable property from
 /// rung 1: no external prover, just the intersection an `Overlap` already
 /// certifies.
+///
+/// # Why uniqueness is a runtime `None`, not a compile error (rung 7)
+///
+/// Unlike rung 1's cross-*epoch* `merge` — a genuine type error, because the
+/// epoch is a const generic — value-uniqueness is enforced when the value is
+/// *constructed* ([`commit_masking`] returns `None`), and cannot be lifted to a
+/// compile error. `Committed<T, E>` names the epoch, never the value: a commit
+/// of one value and a commit of another share a type. Two reasons, and both are
+/// load-bearing findings, not omissions. First, Rust is not dependently typed —
+/// a type cannot be indexed by a runtime term, and a vote's value is runtime
+/// data, so "these two values differ" is not a type-level proposition (no
+/// `adt_const_params`, `typenum`, branding, or `TestEquality` bridges a runtime
+/// value into a type). Second — and deeper — the disagreement that matters is
+/// *cross-process* (two partitioned nodes each mint a `Committed`), and a type
+/// system is per-process: no single typechecker observes both. Cross-participant
+/// value agreement *can* be typed statically (refined multiparty session types,
+/// Session★), but only via a prover over an intact session — which is exactly
+/// what a partition removes. The `None` is therefore the maximal enforcement,
+/// not a weaker stand-in.
+///
+/// A runtime value cannot become part of the type — the obvious "fix" does not
+/// compile:
+///
+/// ```compile_fail
+/// # use quorum_types::attest::{commit_masking, Vote};
+/// # use quorum_types::byzantine::BftConfig;
+/// struct ValueTagged<const V: u64>;
+/// let cfg = BftConfig::<3>::new([0, 1, 2, 3, 4].into_iter().collect(), 1).unwrap();
+/// let c = commit_masking((0..4).map(|n| Vote::new(n, 0xAAu64)).collect(), &cfg).unwrap();
+/// let v: u64 = *c.value();               // the value is runtime data, off the votes
+/// let _t: ValueTagged<v> = ValueTagged;  // E0435: cannot lift a runtime value into a const generic
+/// ```
 #[derive(Debug, Clone)]
 #[must_use = "a Committed is a uniquely-corroborated value; use it or the masking quorum was pointless"]
 pub struct Committed<T, const E: u64> {
@@ -400,5 +432,26 @@ mod tests {
         // And "B" alone genuinely does not commit.
         let b_only = vec![Vote::new(4, "B")];
         assert!(commit_masking(b_only, &cfg).is_none());
+    }
+
+    #[test]
+    fn the_value_is_type_erased_so_uniqueness_cannot_be_a_type_error() {
+        // Rung 7's null, made concrete. Two independent views — the two
+        // partitioned collectors of rung 6b — each reach the masking threshold
+        // for a DIFFERENT value (the honest nodes equivocate across views, which
+        // is the split-brain). Each commit is a genuine masking certificate from
+        // its own view.
+        let cfg = cfg_5_1();
+        let a = commit_masking((0..4).map(|n| Vote::new(n, 0xAAu64)).collect(), &cfg).unwrap();
+        let b = commit_masking((0..4).map(|n| Vote::new(n, 0xBBu64)).collect(), &cfg).unwrap();
+        assert_ne!(a.value(), b.value(), "two conflicting committed values");
+
+        // Both are `Committed<u64, 3>`: the type names the epoch, never the
+        // value, so the disagreement is invisible to the compiler — they unify
+        // into one homogeneous Vec. Value-uniqueness is `commit_masking`'s
+        // runtime `None`, not a type error: the conflict is cross-process (types
+        // are per-process) and a runtime value cannot index a type.
+        let both: Vec<Committed<u64, 3>> = vec![a, b];
+        assert_eq!(both.len(), 2);
     }
 }
