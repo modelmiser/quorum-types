@@ -49,8 +49,9 @@
 //! the computation is free. And the samples are **caller-chosen**, so
 //! certification is self-attestation: a constant merge certified over the one
 //! sample it returns passes all three laws trivially and launders any value
-//! into a `Reconciled`. The witness proves *which* check ran — auditable
-//! evidence — not that the check was adversarially meaningful. This is
+//! into a `Reconciled`. The witness proves a check ran for this merge —
+//! evidence, not proof; it does not even retain the samples — and never that
+//! the check was adversarially meaningful. This is
 //! [`Config::new`](crate::membership::Config::new)'s root-of-trust hole one
 //! rung up: types verify chains; operators choose roots. Propel/VeriFx make
 //! the law half sound statically — this toy prices the cheap version and
