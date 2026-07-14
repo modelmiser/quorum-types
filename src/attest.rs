@@ -60,7 +60,7 @@
 
 use std::collections::BTreeSet;
 
-use crate::byzantine::BftConfig;
+use crate::byzantine::{BftConfig, ByzQuorum, Overlap};
 use crate::membership::NodeId;
 
 /// A single node's claim, at type-level epoch `E`, that a value holds.
@@ -183,6 +183,104 @@ pub fn attest<T: Eq, const E: u64>(
         .map(|(value, support)| Attested { value, support, f })
 }
 
+/// A value corroborated by a **masking quorum** of configuration `E` — unique
+/// per epoch (tier 6b).
+///
+/// Where [`Attested`] clears the `f+1` *existence* threshold (≥1 correct
+/// voucher), a `Committed` clears the *masking* threshold
+/// [`BftConfig::threshold`] `⌈(n+2f+1)/2⌉` and carries a [`ByzQuorum<E>`] as its
+/// support. That is what buys **uniqueness**: any two masking quorums of the
+/// same epoch intersect in `≥ 2f+1` members, of which `≥ f+1` are correct
+/// ([`Overlap::min_correct`]) — and a correct member votes once. So two
+/// `Committed<T, E>` cannot carry *different* values without a set of liars
+/// larger than the declared `f`. The reduction is [`agreement_witness`], and it
+/// is the value-level analogue of the split-brain-unrepresentable property from
+/// rung 1: no external prover, just the intersection an `Overlap` already
+/// certifies.
+#[derive(Debug, Clone)]
+#[must_use = "a Committed is a uniquely-corroborated value; use it or the masking quorum was pointless"]
+pub struct Committed<T, const E: u64> {
+    value: T,
+    quorum: ByzQuorum<E>,
+}
+
+impl<T, const E: u64> Committed<T, E> {
+    /// The uniquely-corroborated value.
+    pub const fn value(&self) -> &T {
+        &self.value
+    }
+
+    /// The certified masking quorum that corroborated the value.
+    pub const fn quorum(&self) -> &ByzQuorum<E> {
+        &self.quorum
+    }
+
+    /// The epoch that committed this value (mirrors `E`).
+    pub const fn epoch(&self) -> u64 {
+        E
+    }
+
+    /// **The uniqueness reduction.** Intersect this commit's masking quorum with
+    /// another same-epoch commit's. The returned [`Overlap`] certifies
+    /// `≥ f+1` *correct* members shared by both quorums — and a correct member
+    /// does not vote for two different values. Its mere existence is therefore a
+    /// witness that the two committed values agree (conditional on the declared
+    /// `f`); if they did not, no honest population could have produced both.
+    /// `None` is unreachable for two genuine masking quorums (they always
+    /// intersect above `2f`), but the boundary returns it rather than panic —
+    /// the same relocate-don't-delete discipline `ByzQuorum::intersect` uses.
+    pub fn agreement_witness(&self, other: &Committed<T, E>) -> Option<Overlap<E>> {
+        self.quorum.intersect(other.quorum())
+    }
+
+    /// Take ownership of the committed value.
+    pub fn into_value(self) -> T {
+        self.value
+    }
+}
+
+/// Corroborate a value at the **masking** threshold: mint a [`Committed<T, E>`]
+/// iff some value was voted for by a masking quorum's worth
+/// (`⌈(n+2f+1)/2⌉`) of **distinct members** of `cfg`.
+///
+/// Same shape as [`attest`] — no `value: T` parameter — so the value is
+/// extracted from the votes, never supplied. The winning support set is handed
+/// to [`BftConfig::certify`], so the resulting quorum is a genuine masking
+/// certificate, not a bare set. Uniqueness follows: a *second* value cannot also
+/// reach this threshold without `> f` members voting twice.
+pub fn commit_masking<T: Eq, const E: u64>(
+    votes: Vec<Vote<T, E>>,
+    cfg: &BftConfig<E>,
+) -> Option<Committed<T, E>> {
+    let threshold = cfg.threshold();
+
+    let mut groups: Vec<(T, BTreeSet<NodeId>)> = Vec::new();
+    for vote in votes {
+        if !cfg.is_member(vote.voter) {
+            continue;
+        }
+        match groups.iter_mut().find(|(v, _)| *v == vote.value) {
+            Some((_, support)) => {
+                support.insert(vote.voter);
+            }
+            None => {
+                let mut support = BTreeSet::new();
+                support.insert(vote.voter);
+                groups.push((vote.value, support));
+            }
+        }
+    }
+
+    let (value, support) = groups
+        .into_iter()
+        .filter(|(_, support)| support.len() >= threshold)
+        .max_by_key(|(_, support)| support.len())?;
+    // `certify` re-checks subset-of-members and threshold: the masking quorum is
+    // minted by the library's own boundary, never fabricated here.
+    let quorum = cfg.certify(support)?;
+    Some(Committed { value, quorum })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -249,5 +347,58 @@ mod tests {
         assert_eq!(a.epoch(), b.epoch(), "at the same epoch");
         // The liar sits in both support sets — that IS the equivocation.
         assert!(a.support().contains(&4) && b.support().contains(&4));
+    }
+
+    // --- tier 6b: masking threshold and uniqueness -------------------------
+
+    #[test]
+    fn masking_quorum_commits_a_value() {
+        // threshold at n=5,f=1 is ⌈(5+2+1)/2⌉ = 4.
+        let cfg = cfg_5_1();
+        let votes = (0..4).map(|n| Vote::new(n, "A")).collect();
+        let c = commit_masking(votes, &cfg).expect("4 distinct members = masking threshold");
+        assert_eq!(*c.value(), "A");
+        assert_eq!(c.quorum().members().len(), 4);
+        assert_eq!(c.epoch(), 3);
+    }
+
+    #[test]
+    fn a_value_below_the_masking_threshold_does_not_commit() {
+        // Existence-strong (3 ≥ f+1) but masking-weak (3 < 4): no Committed.
+        let cfg = cfg_5_1();
+        let votes = (0..3).map(|n| Vote::new(n, "A")).collect();
+        assert!(commit_masking(votes, &cfg).is_none());
+    }
+
+    #[test]
+    fn two_masking_commits_agree_via_an_overlap_witness() {
+        // Two views both see "A" reach the masking threshold, over different
+        // quorums {0,1,2,3} and {1,2,3,4}. The reduction certifies a shared
+        // correct voucher — the uniqueness witness.
+        let cfg = cfg_5_1();
+        let a = commit_masking((0..4).map(|n| Vote::new(n, "A")).collect(), &cfg).unwrap();
+        let b = commit_masking((1..5).map(|n| Vote::new(n, "A")).collect(), &cfg).unwrap();
+        let overlap = a.agreement_witness(&b).expect("masking quorums always intersect above 2f");
+        assert_eq!(overlap.members(), &[1, 2, 3].into_iter().collect());
+        assert!(overlap.min_correct() >= 1, "≥1 correct member vouched for both");
+        assert_eq!(a.value(), b.value(), "the shared correct member forces agreement");
+    }
+
+    #[test]
+    fn one_equivocator_cannot_mint_a_conflicting_masking_commit() {
+        // The uniqueness guarantee, negatively: honest {0,1,2,3} commit "A".
+        // The single liar (4) trying to forge "B" is 1 vote — nowhere near the
+        // masking threshold of 4. With each honest node voting once, no second
+        // value can reach the threshold; a conflicting commit needs `> f`
+        // double-voters, which the declared budget forbids.
+        let cfg = cfg_5_1();
+        let mut votes: Vec<Vote<&str, 3>> = (0..4).map(|n| Vote::new(n, "A")).collect();
+        votes.push(Vote::new(4, "B")); // the equivocator's forged value
+        let c = commit_masking(votes, &cfg).unwrap();
+        assert_eq!(*c.value(), "A", "the liar cannot displace the honest quorum");
+
+        // And "B" alone genuinely does not commit.
+        let b_only = vec![Vote::new(4, "B")];
+        assert!(commit_masking(b_only, &cfg).is_none());
     }
 }
