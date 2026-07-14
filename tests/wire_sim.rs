@@ -84,11 +84,12 @@ fn frame(tag: u8, a: u64, b: u64, c: u64) -> [u8; 25] {
 
 /// The promotion boundary: the sole crossing from wire bytes to typed values.
 ///
-/// Sanitization happens HERE, before any library constructor sees the data:
-/// lease arithmetic is checked (`Lease::new` computes `granted_at + ttl`, so a
+/// Sanitization happens HERE, before any consumer sees the data: lease
+/// arithmetic is checked (`Lease::new` computes `granted_at + ttl`, so a
 /// hostile frame of two `u64::MAX` words must die at the boundary, not panic
 /// inside the library — the rung-4 lesson that guard arithmetic over untrusted
-/// input is itself attack surface), and node ids must fit `NodeId`.
+/// input is itself attack surface), the epoch must have a successor (the
+/// candidate computes `epoch + 1`), and node ids must fit `NodeId`.
 fn promote(datagram: &[u8]) -> Option<Msg> {
     if datagram.len() != 25 {
         return None;
@@ -98,6 +99,9 @@ fn promote(datagram: &[u8]) -> Option<Msg> {
     match datagram[0] {
         1 => {
             b.checked_add(c)?; // reject leases whose expiry would overflow
+            a.checked_add(1)?; // consumers compute the successor epoch; reject
+            // a heartbeat whose epoch has none (u64::MAX would panic the
+            // candidate's dispatch — a reviewer compiled exactly that frame)
             Some(Msg::Heartbeat { epoch: a, lease: Lease::new(b, c) })
         }
         2 => Some(Msg::VoteReq { epoch: a }),
@@ -127,7 +131,9 @@ impl Registry {
         self.serving.insert(host, epoch);
         self.trace.push(format!("t={t} {host} serving e{epoch}"));
         if self.serving.len() > 1 {
-            self.violations.push(format!("t={t} split-brain: {:?}", self.serving));
+            let who: Vec<String> =
+                self.serving.iter().map(|(h, e)| format!("{h}=e{e}")).collect();
+            self.violations.push(format!("t={t} split-brain: [{}]", who.join(", ")));
         }
     }
 
@@ -400,6 +406,19 @@ fn unguarded_twin_split_brains_under_the_same_schedule() {
         "violation shape unexpected: {:?}",
         reg.violations
     );
+}
+
+/// The boundary keeps its own promise: hostile arithmetic dies at `promote`,
+/// not inside a consumer. A review of this rung compiled a heartbeat carrying
+/// `epoch = u64::MAX` that passed the old boundary and panicked the
+/// candidate's `epoch + 1` dispatch — the same attack class as the previous
+/// rung's fault-budget overflow, one layer out.
+#[test]
+fn promote_rejects_wire_values_whose_arithmetic_would_overflow() {
+    assert!(promote(&frame(1, u64::MAX, 0, TTL)).is_none(), "epoch with no successor");
+    assert!(promote(&frame(1, 0, u64::MAX, u64::MAX)).is_none(), "lease expiry overflow");
+    assert!(promote(&frame(3, 1, u64::from(u32::MAX) + 1, 0)).is_none(), "node id out of range");
+    assert!(promote(&frame(1, 0, 0, TTL)).is_some(), "honest frame still promotes");
 }
 
 /// Falsifier #4: the determinism buy-in. Same seed, same trace — byte for
