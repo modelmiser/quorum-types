@@ -41,7 +41,7 @@ that some safety is structural while some is irreducibly temporal.
 | 4 | `tests/partition_heal.rs` | Does the real API hold across a failure cycle? | A deterministic crash→partition→heal sim keeps `NoSplitBrain` throughout, delegating the decision to the real `reconfigure`. |
 | 5 | `membership.rs` | How does membership go dynamic and unbounded? | By *flipping the set relation*: warp complements are **disjoint**; distributed quorums must **intersect**. The type stays relational; the members become a runtime set. |
 | 6 | `reconfig.rs` | Are the temporal and structural guards redundant? | **No** — they split safety by regime. *Within* an epoch, intersection. *Across* an epoch, quorums can be disjoint, so only the lease is safe. |
-| 7 | `consistency.rs` | Can the *data* be typed, not just the membership? | A value's consensus strength becomes a lattice `Local` → `At<T,N>` → `Agreed<T>`. Moving *up* requires a `&Quorum` as evidence; moving *down* is free — so a committed value is *unforgeable*, and acting on an uncommitted one is a type error. |
+| 7 | `consistency.rs` | Can the *data* be typed, not just the membership? | A value's consensus strength becomes a lattice `Local` → `At<T,E>` → `Agreed<T>`. Moving *up* requires a `&Quorum` as evidence; moving *down* is free — so a committed value is *unforgeable*, and acting on an uncommitted one is a type error. |
 
 Read top to bottom, that is the whole story: a structural guarantee (1), a proof
 that it is not enough (2), the runtime guard that completes it (3), evidence it
@@ -73,7 +73,7 @@ turned on the *values* rather than the membership (7).
   authority). Arriving at that fork from "generalize warp-types" is a
   faithfulness signal, not a novelty claim.
 - **The value lattice is asymmetric: up is quorum-gated, down is free.** Consensus
-  strength is itself a type — `Local` (a proposal) below `At<T,N>`/`Agreed<T>`
+  strength is itself a type — `Local` (a proposal) below `At<T,E>`/`Agreed<T>`
   (committed). The only move *up* consumes a `Local` and demands a `&Quorum` as
   evidence, so a committed value is *unforgeable*; weakening back *down* needs
   nothing, because discarding a guarantee is always sound. "Act only on decided

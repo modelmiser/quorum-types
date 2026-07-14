@@ -6,8 +6,8 @@
 //! is a `T` at a known height in a small consistency lattice:
 //!
 //! ```text
-//!            At<T, N>      strongest — committed, and pinned to the exact
-//!               │          configuration epoch N that agreed to it
+//!            At<T, E>      strongest — committed, and pinned to the exact
+//!               │          configuration epoch E that agreed to it
 //!               │  forget_epoch  (free: drop *which* generation)
 //!               ▼
 //!            Agreed<T>     committed by *some* quorum — safe to act on,
@@ -47,7 +47,7 @@
 //!
 //! ## A value agreed at one epoch is not agreed at another
 //!
-//! `At<T, N>` pins the configuration generation into the type, so a value agreed
+//! `At<T, E>` pins the configuration generation into the type, so a value agreed
 //! by config 7 cannot stand in for one that must be agreed by config 3 — the
 //! same epoch guard the rest of the crate enforces, now on the *data*:
 //!
@@ -134,10 +134,10 @@ pub struct Local<T> {
 }
 
 /// **Committed, epoch-pinned.** A value that cleared the quorum of configuration
-/// `N`. The type records *which* generation agreed, so it cannot be substituted
+/// `E`. The type records *which* generation agreed, so it cannot be substituted
 /// for a value that must be agreed by a different configuration.
 #[must_use = "an At value is a committed decision; acting on it is the point"]
-pub struct At<T, const N: u64> {
+pub struct At<T, const E: u64> {
     value: T,
 }
 
@@ -160,11 +160,11 @@ impl<T> Consistency for Agreed<T> {
 }
 impl<T> Committed for Agreed<T> {}
 
-impl<T, const N: u64> sealed::Sealed for At<T, N> {}
-impl<T, const N: u64> Consistency for At<T, N> {
+impl<T, const E: u64> sealed::Sealed for At<T, E> {}
+impl<T, const E: u64> Consistency for At<T, E> {
     const LEVEL: u8 = 2;
 }
-impl<T, const N: u64> Committed for At<T, N> {}
+impl<T, const E: u64> Committed for At<T, E> {}
 
 /// The lattice ordering is a *compile-time* invariant, not a runtime assumption:
 /// `Local` < `Agreed` < `At`. If a future edit reshuffles the levels, the crate
@@ -201,15 +201,15 @@ impl<T> Local<T> {
     }
 }
 
-impl<T, const N: u64> At<T, N> {
+impl<T, const E: u64> At<T, E> {
     /// The committed value.
     pub const fn value(&self) -> &T {
         &self.value
     }
 
-    /// The configuration epoch that agreed to this value (mirrors `N`).
+    /// The configuration epoch that agreed to this value (mirrors `E`).
     pub const fn epoch(&self) -> u64 {
-        N
+        E
     }
 
     /// Take ownership of the committed value, discarding the consistency wrapper.
