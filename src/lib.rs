@@ -102,10 +102,21 @@
 //! ([`At::forget_epoch`](consistency::At::forget_epoch)) is free. Acting on an
 //! uncommitted `Local` where a decision is required is a compile error.
 //!
+//! ## Reconciling divergence: [`mod@reconcile`]
+//!
+//! [`consistency`] stops where two `Agreed` values *disagree*. [`reconcile`]
+//! extends the evidence discipline to the merge: a [`reconcile::Diverged`]
+//! conflict (minted by comparing committed values) is consumed by an
+//! evidence-gated merge demanding a [`reconcile::Lawful`] witness — the merge
+//! function's semilattice laws property-checked at a runtime boundary
+//! (*sampled evidence, not proof*; Propel does this soundly and statically).
+//! The merged result re-enters the lattice at the **bottom**: a merge is a
+//! new proposal, and only a quorum lifts it back up.
+//!
 //! ## Still out of scope (parking lot → later versions)
 //!
 //! Deterministic network simulation (`turmoil`, needs a wire protocol first),
-//! benchmarks, CI.
+//! benchmarks.
 //!
 //! ## Relationship to `warp-types`
 //!
@@ -120,6 +131,7 @@
 pub mod consistency;
 pub mod failover;
 pub mod membership;
+pub mod reconcile;
 pub mod reconfig;
 
 use core::marker::PhantomData;

@@ -42,12 +42,15 @@ that some safety is structural while some is irreducibly temporal.
 | 5 | `membership.rs` | How does membership go dynamic and unbounded? | By *flipping the set relation*: warp complements are **disjoint**; distributed quorums must **intersect**. The type stays relational; the members become a runtime set. |
 | 6 | `reconfig.rs` | Are the temporal and structural guards redundant? | **No** — they split safety by regime. *Within* an epoch, intersection. *Across* an epoch, quorums can be disjoint, so only the lease is safe. |
 | 7 | `consistency.rs` | Can the *data* be typed, not just the membership? | A value's consensus strength becomes a lattice `Local` → `At<T,E>` → `Agreed<T>`. Moving *up* requires a `&Quorum` as evidence; moving *down* is free — so a committed value is *unforgeable*, and acting on an uncommitted one is a type error. |
+| 8 | `reconcile.rs` | Can the *merge* of divergent committed values be typed? | **Partly.** `Diverged` → `Reconciled` is an evidence-gated typestate: the merge demands a `Lawful` witness minted by property-checking the merge function's semilattice laws at a runtime boundary (*sampled evidence, not proof* — [Propel](https://dl.acm.org/doi/10.1145/3591276) does this soundly, statically). And the merged result re-enters the lattice at the **bottom**: in a consensus system a merge is a new proposal, not a decision. |
 
 Read top to bottom, that is the whole story: a structural guarantee (1), a proof
 that it is not enough (2), the runtime guard that completes it (3), evidence it
 works end-to-end (4), the generalization to real membership (5), the composition
-showing the two guards are complementary (6), and finally the same discipline
-turned on the *values* rather than the membership (7).
+showing the two guards are complementary (6), the same discipline turned on the
+*values* rather than the membership (7), and finally the merge of values that
+disagree — where the discipline survives but its evidence weakens from counted
+majorities to sampled laws (8).
 
 ## Key findings
 
@@ -78,6 +81,16 @@ turned on the *values* rather than the membership (7).
   evidence, so a committed value is *unforgeable*; weakening back *down* needs
   nothing, because discarding a guarantee is always sound. "Act only on decided
   values" is then a compile error, not a runtime flag anyone can set.
+- **A merge is a proposal, not a decision.** Reconciling two divergent
+  committed values is evidence-gated like everything else (`Lawful<M>`, a
+  witness that the merge's semilattice laws held on samples), but its output
+  re-enters the lattice at the bottom: no quorum witnessed the merged value,
+  so it must be committed again. In a pure CRDT the merge *is* the truth —
+  that difference is the seam between the two worlds. The witness here is the
+  runtime-cheap cousin of what Propel (PLDI 2023) proves statically, and the
+  unnamed-variant caveat is stated in the module docs: sampling excludes
+  *evidence-free* merging, not merging with a lawless function the samples
+  missed.
 - **`gradual` boundaries are where structure ends.** `Config::certify` and
   `reconfigure` are runtime-checked edges that mint typed tokens trusted
   structurally inside. `N > E` across a reconfiguration, and true linear
@@ -92,6 +105,7 @@ src/failover.rs          gap #1: Lease, reconfigure — runtime temporal guard
 src/membership.rs        gap #2: Config/Quorum<const E> — dynamic intersecting quorums
 src/reconfig.rs          unified: LeasedQuorum — both guards composed
 src/consistency.rs       value lattice: Local/At/Agreed — consensus strength as a type
+src/reconcile.rs         divergence: Diverged/Lawful/Reconciled — evidence-gated merge
 tests/partition_heal.rs  deterministic crash/partition/heal simulation
 tla/quorum.tla           bounded TLA+ model of the failover discipline
     quorum_guarded.cfg   lease guard on  — invariants hold
@@ -101,7 +115,7 @@ tla/quorum.tla           bounded TLA+ model of the failover discipline
 ## Running it
 
 ```sh
-cargo test                 # 35 tests: unit + integration + doctest + compile-fail
+cargo test                 # 45 tests: unit + integration + doctest + compile-fail
 cargo clippy --all-targets -- -D warnings
 
 # The formal model (needs Java + tla2tools.jar):
