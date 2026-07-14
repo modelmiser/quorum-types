@@ -104,11 +104,15 @@ a trust declaration (9).
   possible liars (Malkhi–Reiter, STOC '97 — the famous `3f+1` is the
   *dissemination* regime and assumes self-verifying data). `ByzQuorum` is
   therefore deliberately not interchangeable with `Quorum`; the intersection
-  lemma becomes *infallible* (an `Overlap` witness, not an `Option`) while its
-  meaning weakens: everything it promises is conditional on the operator's
-  declared fault budget `f`, an axiom no type can check. The third instance of
-  "types verify chains; operators choose roots" — and at `f = 0` the masking
-  threshold degenerates exactly to the crash majority.
+  lemma checks the masking bound at the boundary and mints an `Overlap`
+  witness whose `None` arm is unreachable for same-configuration quorums —
+  what `None` actually detects is *epoch-label reuse*, two configs minted
+  under one `E` (a cold review compiled that case; an infallible draft
+  panicked on it). And the witness's meaning is conditional throughout: every
+  promise is relative to the operator's declared fault budget `f`, an axiom
+  no type can check. The third instance of "types verify chains; operators
+  choose roots" — and at `f = 0` the masking threshold degenerates exactly to
+  the crash majority.
 - **`gradual` boundaries are where structure ends.** `Config::certify` and
   `reconfigure` are runtime-checked edges that mint typed tokens trusted
   structurally inside. `N > E` across a reconfiguration, and true linear
@@ -134,7 +138,7 @@ tla/quorum.tla           bounded TLA+ model of the failover discipline
 ## Running it
 
 ```sh
-cargo test                 # 57 tests: unit + integration + doctest + compile-fail
+cargo test                 # 58 tests: unit + integration + doctest + compile-fail
 cargo clippy --all-targets -- -D warnings
 
 # The formal model (needs Java + tla2tools.jar):

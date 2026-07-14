@@ -33,10 +33,16 @@
 //! declared fault budget (`n ≥ 4f+1`). [`BftConfig::certify`] is the runtime
 //! boundary that mints a [`ByzQuorum`] — a certificate **distinct in type**
 //! from the crash [`Quorum`](crate::membership::Quorum), so an API demanding
-//! Byzantine evidence cannot be handed a counted majority. Two same-epoch
-//! `ByzQuorum`s always overlap in `≥ 2f+1` nodes; [`ByzQuorum::intersect`] is
-//! therefore *infallible* and returns an [`Overlap`] witness rather than an
-//! `Option`.
+//! Byzantine evidence cannot be handed a counted majority. Two quorums of the
+//! same *configuration* always overlap in `≥ 2f+1` nodes, so
+//! [`ByzQuorum::intersect`] checks that bound once and mints an [`Overlap`]
+//! witness; for honestly-labelled quorums the `None` arm is unreachable
+//! arithmetic. What `None` actually detects is **epoch-label reuse** — two
+//! different configurations minted under the same `E` (nothing stops
+//! `BftConfig::<0>::new` being called twice with disjoint members). The type
+//! parameter pins the *label*, not the configuration; one-config-per-epoch is
+//! an operator convention, the same root-of-trust hole as `Config::new` one
+//! module over.
 //!
 //! The evidence character, one rung further down the ladder: rung 2's witness
 //! is a counted majority (exact); rung 3's is sampled laws (probabilistic);
@@ -66,7 +72,7 @@
 //! let q1 = cfg.certify(BTreeSet::from([1, 2, 3, 4])).unwrap();
 //! let q2 = cfg.certify(BTreeSet::from([2, 3, 4, 5])).unwrap();
 //!
-//! let overlap = q1.intersect(&q2); // infallible — no Option
+//! let overlap = q1.intersect(&q2).unwrap(); // same config: never None
 //! assert_eq!(overlap.members(), &BTreeSet::from([2, 3, 4])); // ≥ 2f+1 = 3
 //! assert_eq!(overlap.min_correct(), 2); // ≥ f+1 correct, IF at most f lie
 //! ```
@@ -142,8 +148,8 @@ pub struct ByzQuorum<const E: u64> {
     f: usize,
 }
 
-/// The witness minted by [`ByzQuorum::intersect`]: the overlap of two
-/// same-epoch masking quorums, guaranteed `≥ 2f+1` members by arithmetic.
+/// The witness minted by [`ByzQuorum::intersect`]: an overlap of two
+/// same-epoch masking quorums that met the `≥ 2f+1` bound at the boundary.
 ///
 /// What it buys — *conditional on the declared `f`* — is that its correct
 /// up-to-date members (`≥ f+1`, see [`Overlap::min_correct`]) outnumber every
@@ -224,17 +230,25 @@ impl<const E: u64> ByzQuorum<E> {
     }
 
     /// The rung-4 safety lemma: the overlap with another quorum of the
-    /// **same** configuration epoch.
+    /// **same** configuration epoch, checked against the masking bound.
     ///
-    /// Infallible where rung 2's `intersect` returned `Option<NodeId>`: the
-    /// masking threshold makes `|overlap| ≥ 2f+1` an arithmetic fact, and the
-    /// shared `E` is enforced by the signature, so there is no failure case
-    /// left to represent. What changed down the ladder is not fallibility but
-    /// *what the witness means* — see [`Overlap`].
-    pub fn intersect(&self, other: &ByzQuorum<E>) -> Overlap<E> {
-        Overlap {
-            members: self.members.intersection(&other.members).copied().collect(),
-            f: self.f,
+    /// For two quorums of the same *configuration*, `Some` is an arithmetic
+    /// fact — the masking threshold forces `|overlap| ≥ 2f+1` (this quorum's
+    /// `f`), so the `None` arm is unreachable. `None` therefore detects one
+    /// thing only: **epoch-label reuse** — the other quorum was certified by
+    /// a *different* configuration that happened to wear the same `E`. The
+    /// type parameter pins the label, not the configuration; the signature
+    /// cannot close that hole, so the boundary checks it. (The failure case
+    /// cannot be deleted, only relocated — an earlier draft returned
+    /// `Overlap` outright, and safe code mixing two same-`E` configs turned
+    /// the "arithmetic fact" into an underflow panic.)
+    pub fn intersect(&self, other: &ByzQuorum<E>) -> Option<Overlap<E>> {
+        let members: BTreeSet<NodeId> =
+            self.members.intersection(&other.members).copied().collect();
+        if members.len() > 2 * self.f {
+            Some(Overlap { members, f: self.f })
+        } else {
+            None
         }
     }
 }
@@ -327,7 +341,7 @@ mod tests {
 
             for q1 in &quorums {
                 for q2 in &quorums {
-                    let overlap = q1.intersect(q2);
+                    let overlap = q1.intersect(q2).expect("same config: bound is arithmetic");
                     assert!(
                         overlap.members().len() > 2 * f,
                         "n={n}: overlap {:?} smaller than 2f+1",
@@ -349,6 +363,20 @@ mod tests {
                 }
             }
         }
+    }
+
+    /// The type parameter pins the epoch LABEL, not the configuration:
+    /// nothing stops two disjoint configs from both minting at `E = 0`. The
+    /// boundary must catch what the signature cannot — this construction
+    /// (from a cold review that compiled it) panicked on underflow when
+    /// `intersect` was infallible.
+    #[test]
+    fn same_epoch_label_different_configs_yield_no_witness() {
+        let a = BftConfig::<0>::new((1..=5).collect(), 1).unwrap();
+        let b = BftConfig::<0>::new((6..=10).collect(), 1).unwrap();
+        let qa = a.certify((1..=4).collect()).unwrap();
+        let qb = b.certify((6..=9).collect()).unwrap();
+        assert!(qa.intersect(&qb).is_none(), "disjoint configs share no masking overlap");
     }
 
     /// Negative control: the crash-majority threshold does NOT survive the
