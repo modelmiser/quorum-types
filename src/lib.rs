@@ -220,6 +220,17 @@
 //! `Concurrent` witness is the evidence that a merge is *warranted*. Sharper witness
 //! than most of the crate — `compare` is a pure decision procedure over the clocks, not
 //! a trusted `bool`; the only residual trust is that the clocks faithfully count events.
+//! ## Physical time — the read path: [`mod@staleness`]
+//!
+//! [`staleness`] types the mirror choice on reads. A **linearizable** read needs the leader
+//! ([`LeaderLease`](staleness::LeaderLease) — coordination); a **bounded-staleness** read is
+//! served locally from a lagging follower *if the client accepts an age bound `Δ`*, which
+//! rides in the type as a const generic. [`read_within::<Δ>`](staleness::Replica::read_within)
+//! mints a [`Staleness<Δ, T>`](staleness::Staleness) only when the measured lag is within
+//! `Δ`, and [`require::<TOL>`](staleness::Staleness::require) carries a `const { Δ ≤ TOL }`
+//! gate — a read looser than the tolerance is a compile error (the same const-assert
+//! [`flex`] uses). It is physical *recency*, orthogonal to [`session`]'s logical
+//! read-your-writes: `Δ` old, not "reflects your writes."
 //!
 //! ## Still out of scope (parking lot → later versions)
 //!
@@ -254,6 +265,7 @@ pub mod reconfig_safety;
 pub mod session;
 pub mod twophase;
 pub mod vclock;
+pub mod staleness;
 
 use core::marker::PhantomData;
 
