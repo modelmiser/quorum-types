@@ -189,6 +189,65 @@
 //! `crdt` types over data. It *propagates* declared monotonicity labels, it does not
 //! *prove* them — like [`byzantine`]'s fault budget, the labels are axioms.
 //!
+//! ## The blocking transaction: [`mod@twophase`]
+//!
+//! Every rung above hands you a token you *can* spend. [`twophase`] types the
+//! **opposite** move, the one that defines two-phase atomic commit: a participant that
+//! votes YES enters an in-doubt [`Prepared`](twophase::Prepared) state that exposes
+//! **no** `commit`/`abort` — it has *surrendered* unilateral choice, and its only exit
+//! [`decide`](twophase::Participant::decide)s by consuming a coordinator
+//! [`Decision`](twophase::Decision). AC3/AC2 are structural (a `Final<Commit>` needs a
+//! `Decision<Commit>`; `Final` is terminal), but uniform agreement (AC1) is a
+//! coordinator obligation, not a compile-time guarantee — `decide` accepts any decision,
+//! so a single decision per transaction is trusted, not enforced. The famous *blocking*
+//! hazard then falls out for free as a
+//! `#[must_use]` linear `Prepared` token you hold but **cannot discharge** if the
+//! decision never arrives. The type system's inability to let you proceed *is* the
+//! model of the protocol's weakness. It inverts [`escrow`]: escrow pays coordination
+//! once then spends freely (non-blocking); 2PC blocks *at* the seam. (A companion TLC
+//! model checks exactly where cooperative termination lifts the block.)
+//! ## Detecting concurrency: [`mod@vclock`]
+//!
+//! [`causal`] *enforces* an order and [`reconcile`] merges divergent *values*; neither
+//! answers the question between them — *do two updates actually conflict, or does one
+//! supersede the other?* [`vclock`] types the vector-clock decision: [`compare`](vclock::VClock::compare)
+//! mints an [`Ordered`](vclock::Ordered) or [`Concurrent`](vclock::Concurrent) witness,
+//! and the lossy last-writer-wins shortcut [`take_dominant`](vclock::take_dominant)
+//! *requires* `Ordered` — so silently dropping a concurrent update (the classic
+//! lost-update bug) is a **compile error**; concurrent clocks force a lossless
+//! [`merge`](vclock::VClock::merge) (pairwise max — the clock is itself a [`crdt`]
+//! join-semilattice). It is the honest precondition-detector for [`reconcile`]: a
+//! `Concurrent` witness is the evidence that a merge is *warranted*. Sharper witness
+//! than most of the crate — `compare` is a pure decision procedure over the clocks, not
+//! a trusted `bool`; the only residual trust is that the clocks faithfully count events.
+//! ## Physical time — the write path: [`mod@commit_wait`]
+//!
+//! Every clock above is *logical* ([`causal`], [`session`] watermarks) — honest by
+//! construction, because it counts real events. [`commit_wait`] types the one clock that
+//! can be *wrong*: physical time. It models Spanner's **TrueTime**, where
+//! [`now`](commit_wait::TrueTime::now) returns an uncertainty *interval* `[earliest, latest]`,
+//! and buys **external consistency** by **commit-wait**: a [`Pending<T>`](commit_wait::Pending)
+//! commit exposes no value — the committed value is reachable only through
+//! [`Externalized<T>`](commit_wait::Externalized), and the only route there
+//! ([`try_release`](commit_wait::Pending::try_release)) succeeds once a later interval's
+//! `earliest` has passed the commit timestamp (the ε window closed). So *externalizing a
+//! write before its uncertainty window closes is a compile error*. The honest seam is
+//! sharp here: the guarantee is *global* (every writer must wait, and ε must truly bracket
+//! the clock), and the types own only *this* commit's local wait — you cannot type what
+//! time it is, only that you waited for the uncertainty to close.
+//!
+//! ## Physical time — the read path: [`mod@staleness`]
+//!
+//! [`staleness`] types the mirror choice on reads. A **linearizable** read needs the leader
+//! ([`LeaderLease`](staleness::LeaderLease) — coordination); a **bounded-staleness** read is
+//! served locally from a lagging follower *if the client accepts an age bound `Δ`*, which
+//! rides in the type as a const generic. [`read_within::<Δ>`](staleness::Replica::read_within)
+//! mints a [`Staleness<Δ, T>`](staleness::Staleness) only when the measured lag is within
+//! `Δ`, and [`require::<TOL>`](staleness::Staleness::require) carries a `const { Δ ≤ TOL }`
+//! gate — a read looser than the tolerance is a compile error (the same const-assert
+//! [`flex`] uses). It is physical *recency*, orthogonal to [`session`]'s logical
+//! read-your-writes: `Δ` old, not "reflects your writes."
+//!
 //! ## Still out of scope (parking lot → later versions)
 //!
 //! Benchmarks. (The deterministic network simulation formerly parked here
@@ -209,6 +268,7 @@ pub mod attest;
 pub mod byzantine;
 pub mod calm;
 pub mod causal;
+pub mod commit_wait;
 pub mod consistency;
 pub mod crdt;
 pub mod escrow;
@@ -219,6 +279,9 @@ pub mod reconcile;
 pub mod reconfig;
 pub mod reconfig_safety;
 pub mod session;
+pub mod twophase;
+pub mod vclock;
+pub mod staleness;
 
 use core::marker::PhantomData;
 
