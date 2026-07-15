@@ -137,6 +137,58 @@
 //! rather than in a prover. `tests/attest_wire.rs` drives it under an
 //! equivocating host: existence splits, the masking threshold denies the split.
 //!
+//! ## The coordination-free floor: [`mod@crdt`]
+//!
+//! Every module above types a *boundary* where a runtime fact earns a guarantee.
+//! [`crdt`] types the place where there is **none**: a state-based CRDT is a value
+//! in a join-semilattice, and its [`join`](crdt::JoinSemilattice::join) —
+//! commutative, associative, idempotent — is total, infallible, and witness-free.
+//! Replicas converge under *any* delivery order, with duplicates, needing no
+//! quorum, lease, or causal typestate (Hellerstein's CALM: monotone = coordination
+//! -free). It is the mirror of [`causal`]: that rung makes out-of-order delivery a
+//! compile error (it *enforces* an order); this one makes order *irrelevant*. The
+//! compiler enforces the interface (the only combinator is `join`); the tests
+//! discharge the algebraic laws, with a non-idempotent negative control.
+//!
+//! ## Buying back coordination-freedom: [`mod@escrow`]
+//!
+//! [`crdt`] types operations that are *already* coordination-free. [`escrow`] types
+//! the harder case: an operation that is **not** invariant-confluent — a bounded
+//! counter ("stock `≥ 0`") — made local by *pre-partitioning* the budget (Bailis's
+//! demarcation). A [`Reservation<BUDGET>`](escrow::Reservation) is a linear token;
+//! capacity enters via `grant` (once per tree; `grant` roots independent trees),
+//! moves only by conserving `split`/`merge`/`spend`, so within a tree `Σ remaining
+//! + Σ spent == BUDGET` always and the bound cannot be crossed by any interleaving.
+//! Spending your own reservation is free; needing
+//! *more* is the seam — the through-line inverted: pay coordination **once** at
+//! partition time, then act freely. Budgets are epoch-like — reservations from
+//! different `BUDGET`s cannot `merge` (compile error).
+//! ## Flexible read/write quorums: [`mod@flex`]
+//!
+//! [`membership`] types one quorum kind (majorities, `2·maj(N) > N`). [`flex`]
+//! types the whole **Flexible Paxos** frontier: [`ReadQuorum<N, R>`](flex::ReadQuorum)
+//! and [`WriteQuorum<N, W>`](flex::WriteQuorum) are distinct types, and the only
+//! way to witness that a read observes a write ([`read_sees_write`](flex::read_sees_write))
+//! carries an inline `const {}` assertion that `R + W > N` — so obtaining the
+//! intersection witness for a miss-prone sizing is a **compile error**. The types
+//! enforce the *sufficient* direction (`R + W > N` ⇒ every read meets every write);
+//! z3 established the frontier's exactness separately (strict majority is its
+//! symmetric instance). The same `const {}`
+//! threshold-lift the reconfiguration rung uses, now for the flexible frontier.
+//! ## Classifying coordination-freedom: [`mod@calm`]
+//!
+//! The rungs above each sit on one side of a cut — a `crdt` join is coordination
+//! -free, quorum commits / `escrow` top-ups need a seam. [`calm`] types the cut as
+//! a compositional **effect**: an [`Op<C>`](calm::Op) is tagged [`Free`](calm::Free)
+//! or [`Coordinated`](calm::Coordinated), a [`Pipeline`](calm::Pipeline) threads the
+//! **join** of its steps' levels (`Coordinated` is sticky), and
+//! [`deploy_coordinator_free`](calm::deploy_coordinator_free) compiles only for an
+//! all-`Free` pipeline — one coordinated step anywhere is a compile error. This is
+//! Hellerstein's CALM theorem (coordination-free iff monotone) as a type-level
+//! classifier; the coordination lattice is itself the two-element join-semilattice
+//! `crdt` types over data. It *propagates* declared monotonicity labels, it does not
+//! *prove* them — like [`byzantine`]'s fault budget, the labels are axioms.
+//!
 //! ## Still out of scope (parking lot → later versions)
 //!
 //! Benchmarks. (The deterministic network simulation formerly parked here
@@ -155,12 +207,18 @@
 
 pub mod attest;
 pub mod byzantine;
+pub mod calm;
 pub mod causal;
 pub mod consistency;
+pub mod crdt;
+pub mod escrow;
 pub mod failover;
+pub mod flex;
 pub mod membership;
 pub mod reconcile;
 pub mod reconfig;
+pub mod reconfig_safety;
+pub mod session;
 
 use core::marker::PhantomData;
 
