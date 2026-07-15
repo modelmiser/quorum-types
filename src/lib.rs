@@ -150,6 +150,20 @@
 //! compiler enforces the interface (the only combinator is `join`); the tests
 //! discharge the algebraic laws, with a non-idempotent negative control.
 //!
+//! ## Buying back coordination-freedom: [`mod@escrow`]
+//!
+//! [`crdt`] types operations that are *already* coordination-free. [`escrow`] types
+//! the harder case: an operation that is **not** invariant-confluent — a bounded
+//! counter ("stock `≥ 0`") — made local by *pre-partitioning* the budget (Bailis's
+//! demarcation). A [`Reservation<BUDGET>`](escrow::Reservation) is a linear token;
+//! capacity enters via `grant` (once per tree; `grant` roots independent trees),
+//! moves only by conserving `split`/`merge`/`spend`, so within a tree `Σ remaining
+//! + Σ spent == BUDGET` always and the bound cannot be crossed by any interleaving.
+//! Spending your own reservation is free; needing
+//! *more* is the seam — the through-line inverted: pay coordination **once** at
+//! partition time, then act freely. Budgets are epoch-like — reservations from
+//! different `BUDGET`s cannot `merge` (compile error).
+//!
 //! ## Still out of scope (parking lot → later versions)
 //!
 //! Benchmarks. (The deterministic network simulation formerly parked here
@@ -171,6 +185,7 @@ pub mod byzantine;
 pub mod causal;
 pub mod consistency;
 pub mod crdt;
+pub mod escrow;
 pub mod failover;
 pub mod membership;
 pub mod reconcile;
