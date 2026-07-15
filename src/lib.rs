@@ -189,6 +189,21 @@
 //! `crdt` types over data. It *propagates* declared monotonicity labels, it does not
 //! *prove* them — like [`byzantine`]'s fault budget, the labels are axioms.
 //!
+//! ## Detecting concurrency: [`mod@vclock`]
+//!
+//! [`causal`] *enforces* an order and [`reconcile`] merges divergent *values*; neither
+//! answers the question between them — *do two updates actually conflict, or does one
+//! supersede the other?* [`vclock`] types the vector-clock decision: [`compare`](vclock::VClock::compare)
+//! mints an [`Ordered`](vclock::Ordered) or [`Concurrent`](vclock::Concurrent) witness,
+//! and the lossy last-writer-wins shortcut [`take_dominant`](vclock::take_dominant)
+//! *requires* `Ordered` — so silently dropping a concurrent update (the classic
+//! lost-update bug) is a **compile error**; concurrent clocks force a lossless
+//! [`merge`](vclock::VClock::merge) (pairwise max — the clock is itself a [`crdt`]
+//! join-semilattice). It is the honest precondition-detector for [`reconcile`]: a
+//! `Concurrent` witness is the evidence that a merge is *warranted*. Sharper witness
+//! than most of the crate — `compare` is a pure decision procedure over the clocks, not
+//! a trusted `bool`; the only residual trust is that the clocks faithfully count events.
+//!
 //! ## Still out of scope (parking lot → later versions)
 //!
 //! Benchmarks. (The deterministic network simulation formerly parked here
@@ -219,6 +234,7 @@ pub mod reconcile;
 pub mod reconfig;
 pub mod reconfig_safety;
 pub mod session;
+pub mod vclock;
 
 use core::marker::PhantomData;
 
