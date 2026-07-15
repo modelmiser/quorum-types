@@ -189,6 +189,18 @@
 //! `crdt` types over data. It *propagates* declared monotonicity labels, it does not
 //! *prove* them — like [`byzantine`]'s fault budget, the labels are axioms.
 //!
+//! ## Physical time — the read path: [`mod@staleness`]
+//!
+//! [`staleness`] types the mirror choice on reads. A **linearizable** read needs the leader
+//! ([`LeaderLease`](staleness::LeaderLease) — coordination); a **bounded-staleness** read is
+//! served locally from a lagging follower *if the client accepts an age bound `Δ`*, which
+//! rides in the type as a const generic. [`read_within::<Δ>`](staleness::Replica::read_within)
+//! mints a [`Staleness<Δ, T>`](staleness::Staleness) only when the measured lag is within
+//! `Δ`, and [`require::<TOL>`](staleness::Staleness::require) carries a `const { Δ ≤ TOL }`
+//! gate — a read looser than the tolerance is a compile error (the same const-assert
+//! [`flex`] uses). It is physical *recency*, orthogonal to [`session`]'s logical
+//! read-your-writes: `Δ` old, not "reflects your writes."
+//!
 //! ## Still out of scope (parking lot → later versions)
 //!
 //! Benchmarks. (The deterministic network simulation formerly parked here
@@ -219,6 +231,7 @@ pub mod reconcile;
 pub mod reconfig;
 pub mod reconfig_safety;
 pub mod session;
+pub mod staleness;
 
 use core::marker::PhantomData;
 
