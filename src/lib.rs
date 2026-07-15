@@ -220,6 +220,22 @@
 //! `Concurrent` witness is the evidence that a merge is *warranted*. Sharper witness
 //! than most of the crate — `compare` is a pure decision procedure over the clocks, not
 //! a trusted `bool`; the only residual trust is that the clocks faithfully count events.
+//! ## Physical time — the write path: [`mod@commit_wait`]
+//!
+//! Every clock above is *logical* ([`causal`], [`session`] watermarks) — honest by
+//! construction, because it counts real events. [`commit_wait`] types the one clock that
+//! can be *wrong*: physical time. It models Spanner's **TrueTime**, where
+//! [`now`](commit_wait::TrueTime::now) returns an uncertainty *interval* `[earliest, latest]`,
+//! and buys **external consistency** by **commit-wait**: a [`Pending<T>`](commit_wait::Pending)
+//! commit exposes no value — the committed value is reachable only through
+//! [`Externalized<T>`](commit_wait::Externalized), and the only route there
+//! ([`try_release`](commit_wait::Pending::try_release)) succeeds once a later interval's
+//! `earliest` has passed the commit timestamp (the ε window closed). So *externalizing a
+//! write before its uncertainty window closes is a compile error*. The honest seam is
+//! sharp here: the guarantee is *global* (every writer must wait, and ε must truly bracket
+//! the clock), and the types own only *this* commit's local wait — you cannot type what
+//! time it is, only that you waited for the uncertainty to close.
+//!
 //! ## Physical time — the read path: [`mod@staleness`]
 //!
 //! [`staleness`] types the mirror choice on reads. A **linearizable** read needs the leader

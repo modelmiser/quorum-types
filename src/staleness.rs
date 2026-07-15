@@ -1,6 +1,6 @@
 //! Bounded-staleness reads — the *read-path* physical-time rung.
 //!
-//! `commit_wait` types the write path: a write is held back until its
+//! [`commit_wait`](crate::commit_wait) types the write path: a write is held back until its
 //! uncertainty window closes. This module types the mirror choice on the **read** path.
 //! A read has a dial between two extremes:
 //!
@@ -73,7 +73,7 @@
 //!   and `last_applied` are on comparable, synchronized clocks; a skewed clock reports a
 //!   false age. The witness certifies "a lag measurement came in under `Δ`," not that the
 //!   data is truly that fresh — the same declared-vs-true boundary as
-//!   `commit_wait`. Worse, the failure is *one-sided*: a replica whose
+//!   [`commit_wait`](crate::commit_wait). Worse, the failure is *one-sided*: a replica whose
 //!   `last_applied` runs *ahead* of `now` (a fast/bogus clock reporting a future timestamp)
 //!   saturates the measured lag to `0` and passes *any* `Δ`, even `Δ = 0` — the skew that
 //!   most flatters freshness is exactly the one the measurement hides.
