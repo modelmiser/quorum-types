@@ -248,6 +248,25 @@
 //! [`flex`] uses). It is physical *recency*, orthogonal to [`session`]'s logical
 //! read-your-writes: `Δ` old, not "reflects your writes."
 //!
+//! ## Making a lost lock safe: [`mod@fencing`]
+//!
+//! [`failover`]'s TLA+ verdict was that the type-level epoch is *necessary but not
+//! sufficient*: an old leader keeps serving until its lease lapses — a temporal hole
+//! no type can plug. [`fencing`] closes that residual from the **resource** side
+//! (Kleppmann): the lock service issues [`FencingToken`](fencing::FencingToken)s with
+//! strictly increasing numbers, and a [`FencedStore`](fencing::FencedStore)'s only
+//! mutator *requires* one, rejecting any write whose token is older than the newest it
+//! has accepted. Two clients can *both* believe they hold the lock — mutual exclusion
+//! has already failed — and writes *to this store* are still safe, because the stale
+//! write is fenced there (the store needs no lease, clock, or quorum of its own — it
+//! pushes those into the token authority). An [`Accepted`](fencing::Accepted)
+//! receipt is minted only by the store's own compare, and the token is unforgeable
+//! (private field) — but the guarantee is *mostly* a runtime monotone check, and
+//! honestly so: the types forbid an unfenced write and a forged token, while total
+//! mediation and cross-failure monotonicity stay operator obligations. It trades
+//! [`failover`]'s clock-trust for coverage-trust. (A TLC discriminant confirms the
+//! reject is load-bearing — remove it and a stale token overwrites a newer write.)
+//!
 //! ## Still out of scope (parking lot → later versions)
 //!
 //! Benchmarks. (The deterministic network simulation formerly parked here
@@ -282,6 +301,7 @@ pub mod session;
 pub mod twophase;
 pub mod vclock;
 pub mod staleness;
+pub mod fencing;
 
 use core::marker::PhantomData;
 
