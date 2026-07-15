@@ -175,6 +175,19 @@
 //! z3 established the frontier's exactness separately (strict majority is its
 //! symmetric instance). The same `const {}`
 //! threshold-lift the reconfiguration rung uses, now for the flexible frontier.
+//! ## Classifying coordination-freedom: [`mod@calm`]
+//!
+//! The rungs above each sit on one side of a cut — a `crdt` join is coordination
+//! -free, quorum commits / `escrow` top-ups need a seam. [`calm`] types the cut as
+//! a compositional **effect**: an [`Op<C>`](calm::Op) is tagged [`Free`](calm::Free)
+//! or [`Coordinated`](calm::Coordinated), a [`Pipeline`](calm::Pipeline) threads the
+//! **join** of its steps' levels (`Coordinated` is sticky), and
+//! [`deploy_coordinator_free`](calm::deploy_coordinator_free) compiles only for an
+//! all-`Free` pipeline — one coordinated step anywhere is a compile error. This is
+//! Hellerstein's CALM theorem (coordination-free iff monotone) as a type-level
+//! classifier; the coordination lattice is itself the two-element join-semilattice
+//! `crdt` types over data. It *propagates* declared monotonicity labels, it does not
+//! *prove* them — like [`byzantine`]'s fault budget, the labels are axioms.
 //!
 //! ## Still out of scope (parking lot → later versions)
 //!
@@ -194,6 +207,7 @@
 
 pub mod attest;
 pub mod byzantine;
+pub mod calm;
 pub mod causal;
 pub mod consistency;
 pub mod crdt;
