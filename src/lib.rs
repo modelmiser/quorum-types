@@ -209,6 +209,7 @@ pub mod attest;
 pub mod byzantine;
 pub mod calm;
 pub mod causal;
+pub mod commit_wait;
 pub mod consistency;
 pub mod crdt;
 pub mod escrow;
