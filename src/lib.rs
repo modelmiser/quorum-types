@@ -314,7 +314,7 @@
 //! a const generic, and [`acquire`](lockorder::Held::acquire)`::<R>` guards its body
 //! with `const { assert!(R > HI) }` — an out-of-order acquire fails at
 //! monomorphization, so the circular wait that could deadlock is a compile error.
-//! A linear [`Guard`](lockorder::Guard) makes [`release`](lockorder::Held::release)
+//! A move-only [`Guard`](lockorder::Guard) makes [`release`](lockorder::Held::release)
 //! strictly LIFO (the mirror of the increasing-rank acquire). Its seam is a distinct
 //! *species*: not a trusted runtime witness but a trusted global **ordering** — that
 //! the ranks form one consistent order every thread obeys is a declared axiom (the

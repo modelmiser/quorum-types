@@ -22,7 +22,7 @@
 //! * [`acquire`](Held::acquire)`::<R>` lifts the rank `R` into the type. Its body
 //!   carries `const { assert!(R > HI) }`, so acquiring a rank at or below the current
 //!   watermark does not compile. On success you get [`Held`]`<R>` (the new, higher
-//!   watermark) **and** a [`Guard`]`<HI, R>` — a linear receipt remembering the rank
+//!   watermark) **and** a [`Guard`]`<HI, R>` — a move-only receipt remembering the rank
 //!   just taken (`R`) and the watermark to restore beneath it (`HI`).
 //! * [`release`](Held::release) consumes the current [`Held`]`<HI>` together with the
 //!   guard for rank `HI` and returns [`Held`]`<UNDER>` — the watermark from *before*
@@ -139,8 +139,8 @@
 /// rank order, with `HI` the highest rank currently held (the watermark). `Held<0>`
 /// is the empty hold.
 ///
-/// A zero-sized type: the whole guarantee lives in the const generic `HI` and in the
-/// linearity of [`Guard`]. The private field blocks construction outside this
+/// A zero-sized type: the whole guarantee lives in the const generic `HI` and in
+/// [`Guard`] being move-only. The private field blocks construction outside this
 /// module, so the only `Held` values are the empty [`base`](Held::base) and those
 /// threaded through [`acquire`](Held::acquire) / [`release`](Held::release).
 ///
@@ -152,7 +152,7 @@ pub struct Held<const HI: u32> {
     _priv: (),
 }
 
-/// A linear receipt for one acquired lock: `RANK` is the rank it holds, `UNDER` is
+/// A move-only receipt for one acquired lock: `RANK` is the rank it holds, `UNDER` is
 /// the watermark to restore when it is released. Minted only by
 /// [`acquire`](Held::acquire), consumed only by [`release`](Held::release).
 ///
