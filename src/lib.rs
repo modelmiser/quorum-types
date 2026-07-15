@@ -161,6 +161,7 @@ pub mod failover;
 pub mod membership;
 pub mod reconcile;
 pub mod reconfig;
+pub mod reconfig_safety;
 
 use core::marker::PhantomData;
 
