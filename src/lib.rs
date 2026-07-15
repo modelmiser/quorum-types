@@ -248,6 +248,46 @@
 //! [`flex`] uses). It is physical *recency*, orthogonal to [`session`]'s logical
 //! read-your-writes: `Δ` old, not "reflects your writes."
 //!
+//! ## Making a lost lock safe: [`mod@fencing`]
+//!
+//! [`failover`]'s TLA+ verdict was that the type-level epoch is *necessary but not
+//! sufficient*: an old leader keeps serving until its lease lapses — a temporal hole
+//! no type can plug. [`fencing`] closes that residual from the **resource** side
+//! (Kleppmann): the lock service issues [`FencingToken`](fencing::FencingToken)s with
+//! strictly increasing numbers, and a [`FencedStore`](fencing::FencedStore)'s only
+//! mutator *requires* one, rejecting any write whose token is older than the newest it
+//! has accepted. Two clients can *both* believe they hold the lock — mutual exclusion
+//! has already failed — and writes *to this store* are still safe, because the stale
+//! write is fenced there (the store needs no lease, clock, or quorum of its own — it
+//! pushes those into the token authority). An [`Accepted`](fencing::Accepted)
+//! receipt is minted only by the store's own compare, and the token is unforgeable
+//! (private field) — but the guarantee is *mostly* a runtime monotone check, and
+//! honestly so: the types forbid an unfenced write and a forged token, while total
+//! mediation and cross-failure monotonicity stay operator obligations. It trades
+//! [`failover`]'s clock-trust for coverage-trust. (A TLC discriminant confirms the
+//! reject is load-bearing — remove it and a stale token overwrites a newer write.)
+//!
+//! ## The compensating transaction: [`mod@saga`]
+//!
+//! [`twophase`] buys atomicity *and* isolation by **blocking** — a prepared
+//! participant holds its choice and its locks until the coordinator decides. [`saga`]
+//! is the non-blocking dual (Garcia-Molina & Salem): each local step commits
+//! immediately, and a later failure recovers atomicity of *outcome* by running the
+//! completed steps' compensations in **reverse**. That reverse order is typed
+//! *structurally* — the pending compensations are a type-level cons-list
+//! ([`Cons`](saga::Cons)/[`Nil`](saga::Nil)), and
+//! [`compensate_next`](saga::Aborting::compensate_next) peels only the head, burying
+//! the rest in the tail type, so compensating out of order is *unrepresentable* and
+//! [`done`](saga::Aborting::done) exists only on the empty stack. It mirrors
+//! [`twophase`] inverted: 2PC's headline is a token you *cannot discharge* (block); the
+//! saga's is a stack you are *steered* (`#[must_use]`, not forced — affinity lets you
+//! drop instead) to discharge in reverse (unwind) — both linearity stories, opposite
+//! ends of the blocking/isolation trade. The types own the control flow;
+//! whether each compensation *semantically* undoes its step, and the lost isolation of
+//! intermediate reads, are the runtime seam. (A z3 model checks the ordering claim
+//! under step dependencies: reverse restores the pre-saga state, out-of-order can
+//! violate it.)
+//!
 //! ## Still out of scope (parking lot → later versions)
 //!
 //! Benchmarks. (The deterministic network simulation formerly parked here
@@ -282,6 +322,8 @@ pub mod session;
 pub mod twophase;
 pub mod vclock;
 pub mod staleness;
+pub mod fencing;
+pub mod saga;
 
 use core::marker::PhantomData;
 
