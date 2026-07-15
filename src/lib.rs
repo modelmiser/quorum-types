@@ -189,6 +189,24 @@
 //! `crdt` types over data. It *propagates* declared monotonicity labels, it does not
 //! *prove* them — like [`byzantine`]'s fault budget, the labels are axioms.
 //!
+//! ## The blocking transaction: [`mod@twophase`]
+//!
+//! Every rung above hands you a token you *can* spend. [`twophase`] types the
+//! **opposite** move, the one that defines two-phase atomic commit: a participant that
+//! votes YES enters an in-doubt [`Prepared`](twophase::Prepared) state that exposes
+//! **no** `commit`/`abort` — it has *surrendered* unilateral choice, and its only exit
+//! [`decide`](twophase::Participant::decide)s by consuming a coordinator
+//! [`Decision`](twophase::Decision). AC3/AC2 are structural (a `Final<Commit>` needs a
+//! `Decision<Commit>`; `Final` is terminal), but uniform agreement (AC1) is a
+//! coordinator obligation, not a compile-time guarantee — `decide` accepts any decision,
+//! so a single decision per transaction is trusted, not enforced. The famous *blocking*
+//! hazard then falls out for free as a
+//! `#[must_use]` linear `Prepared` token you hold but **cannot discharge** if the
+//! decision never arrives. The type system's inability to let you proceed *is* the
+//! model of the protocol's weakness. It inverts [`escrow`]: escrow pays coordination
+//! once then spends freely (non-blocking); 2PC blocks *at* the seam. (A companion TLC
+//! model checks exactly where cooperative termination lifts the block.)
+//!
 //! ## Still out of scope (parking lot → later versions)
 //!
 //! Benchmarks. (The deterministic network simulation formerly parked here
@@ -219,6 +237,7 @@ pub mod reconcile;
 pub mod reconfig;
 pub mod reconfig_safety;
 pub mod session;
+pub mod twophase;
 
 use core::marker::PhantomData;
 
