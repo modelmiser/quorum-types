@@ -288,6 +288,23 @@
 //! under step dependencies: reverse restores the pre-saga state, out-of-order can
 //! violate it.)
 //!
+//! ## Deadlock made unrepresentable: [`mod@lockorder`]
+//!
+//! [`failover`] and [`fencing`] type a *single* lock; [`lockorder`] types the
+//! *multi-lock* hazard's classic fix (Havender/Dijkstra): give every resource a
+//! **rank** and acquire in strictly increasing rank order, so a hold-and-wait cycle
+//! cannot close. A [`Held`](lockorder::Held)`<HI>` carries the highest rank held as
+//! a const generic, and [`acquire`](lockorder::Held::acquire)`::<R>` guards its body
+//! with `const { assert!(R > HI) }` — an out-of-order acquire fails at
+//! monomorphization, so the circular wait that could deadlock is a compile error.
+//! A linear [`Guard`](lockorder::Guard) makes [`release`](lockorder::Held::release)
+//! strictly LIFO (the mirror of the increasing-rank acquire). Its seam is a distinct
+//! *species*: not a trusted runtime witness but a trusted global **ordering** — that
+//! the ranks form one consistent order every thread obeys is a declared axiom (the
+//! [`byzantine`] `f` / [`calm`]-label shape), and the monotone watermark is
+//! sufficient-not-exact ([`flex`]'s trade). A z3 discriminant confirms rank-ordered
+//! acquisition is the sole thing preventing a wait-for cycle.
+//!
 //! ## Still out of scope (parking lot → later versions)
 //!
 //! Benchmarks. (The deterministic network simulation formerly parked here
@@ -324,6 +341,7 @@ pub mod vclock;
 pub mod staleness;
 pub mod fencing;
 pub mod saga;
+pub mod lockorder;
 
 use core::marker::PhantomData;
 
