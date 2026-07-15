@@ -267,6 +267,27 @@
 //! [`failover`]'s clock-trust for coverage-trust. (A TLC discriminant confirms the
 //! reject is load-bearing — remove it and a stale token overwrites a newer write.)
 //!
+//! ## The compensating transaction: [`mod@saga`]
+//!
+//! [`twophase`] buys atomicity *and* isolation by **blocking** — a prepared
+//! participant holds its choice and its locks until the coordinator decides. [`saga`]
+//! is the non-blocking dual (Garcia-Molina & Salem): each local step commits
+//! immediately, and a later failure recovers atomicity of *outcome* by running the
+//! completed steps' compensations in **reverse**. That reverse order is typed
+//! *structurally* — the pending compensations are a type-level cons-list
+//! ([`Cons`](saga::Cons)/[`Nil`](saga::Nil)), and
+//! [`compensate_next`](saga::Aborting::compensate_next) peels only the head, burying
+//! the rest in the tail type, so compensating out of order is *unrepresentable* and
+//! [`done`](saga::Aborting::done) exists only on the empty stack. It mirrors
+//! [`twophase`] inverted: 2PC's headline is a token you *cannot discharge* (block); the
+//! saga's is a stack you are *steered* (`#[must_use]`, not forced — affinity lets you
+//! drop instead) to discharge in reverse (unwind) — both linearity stories, opposite
+//! ends of the blocking/isolation trade. The types own the control flow;
+//! whether each compensation *semantically* undoes its step, and the lost isolation of
+//! intermediate reads, are the runtime seam. (A z3 model checks the ordering claim
+//! under step dependencies: reverse restores the pre-saga state, out-of-order can
+//! violate it.)
+//!
 //! ## Still out of scope (parking lot → later versions)
 //!
 //! Benchmarks. (The deterministic network simulation formerly parked here
@@ -302,6 +323,7 @@ pub mod twophase;
 pub mod vclock;
 pub mod staleness;
 pub mod fencing;
+pub mod saga;
 
 use core::marker::PhantomData;
 
