@@ -288,6 +288,23 @@
 //! under step dependencies: reverse restores the pre-saga state, out-of-order can
 //! violate it.)
 //!
+//! ## Linearizability from a line, not a set: [`mod@chain`]
+//!
+//! Every consistency rung above earns its guarantee from a *set* that intersects —
+//! a quorum ([`membership`], [`flex`], [`byzantine`]), a value lattice, or a clock.
+//! [`chain`] takes the other road (van Renesse & Schneider): the replicas are a
+//! **line** Head → Mid → Tail, an update is applied at the head and forwarded one
+//! hop at a time, and it is committed *exactly when it reaches the tail* — by which
+//! point every upstream replica has it. Position is a type parameter; the [`Forward`](chain::Forward)
+//! trait carries the successor as an associated type (`Tail` has none), so
+//! [`forward`](chain::Update::forward) advances one hop and [`commit`](chain::Update::commit)
+//! is reachable *only* from `Update<`[`Tail`](chain::Tail)`>` — committing a
+//! half-replicated update is a compile error, not a runtime check. Strong
+//! consistency comes from the *order of traversal*, with no quorum anywhere. The
+//! types own one update's Head→Tail walk; per-node durability, cross-update per-link
+//! FIFO order (the linearizability-across-updates seam a TLC discriminant covers),
+//! and chain repair on failure stay runtime.
+//!
 //! ## Still out of scope (parking lot → later versions)
 //!
 //! Benchmarks. (The deterministic network simulation formerly parked here
@@ -324,6 +341,7 @@ pub mod vclock;
 pub mod staleness;
 pub mod fencing;
 pub mod saga;
+pub mod chain;
 
 use core::marker::PhantomData;
 
