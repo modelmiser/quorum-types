@@ -155,6 +155,7 @@
 
 pub mod attest;
 pub mod byzantine;
+pub mod causal;
 pub mod consistency;
 pub mod failover;
 pub mod membership;
