@@ -163,6 +163,18 @@
 //! *more* is the seam — the through-line inverted: pay coordination **once** at
 //! partition time, then act freely. Budgets are epoch-like — reservations from
 //! different `BUDGET`s cannot `merge` (compile error).
+//! ## Flexible read/write quorums: [`mod@flex`]
+//!
+//! [`membership`] types one quorum kind (majorities, `2·maj(N) > N`). [`flex`]
+//! types the whole **Flexible Paxos** frontier: [`ReadQuorum<N, R>`](flex::ReadQuorum)
+//! and [`WriteQuorum<N, W>`](flex::WriteQuorum) are distinct types, and the only
+//! way to witness that a read observes a write ([`read_sees_write`](flex::read_sees_write))
+//! carries an inline `const {}` assertion that `R + W > N` — so obtaining the
+//! intersection witness for a miss-prone sizing is a **compile error**. The types
+//! enforce the *sufficient* direction (`R + W > N` ⇒ every read meets every write);
+//! z3 established the frontier's exactness separately (strict majority is its
+//! symmetric instance). The same `const {}`
+//! threshold-lift the reconfiguration rung uses, now for the flexible frontier.
 //!
 //! ## Still out of scope (parking lot → later versions)
 //!
@@ -187,6 +199,7 @@ pub mod consistency;
 pub mod crdt;
 pub mod escrow;
 pub mod failover;
+pub mod flex;
 pub mod membership;
 pub mod reconcile;
 pub mod reconfig;
