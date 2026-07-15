@@ -162,6 +162,7 @@ pub mod membership;
 pub mod reconcile;
 pub mod reconfig;
 pub mod reconfig_safety;
+pub mod session;
 
 use core::marker::PhantomData;
 
