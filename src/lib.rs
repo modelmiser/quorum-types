@@ -137,6 +137,19 @@
 //! rather than in a prover. `tests/attest_wire.rs` drives it under an
 //! equivocating host: existence splits, the masking threshold denies the split.
 //!
+//! ## The coordination-free floor: [`mod@crdt`]
+//!
+//! Every module above types a *boundary* where a runtime fact earns a guarantee.
+//! [`crdt`] types the place where there is **none**: a state-based CRDT is a value
+//! in a join-semilattice, and its [`join`](crdt::JoinSemilattice::join) —
+//! commutative, associative, idempotent — is total, infallible, and witness-free.
+//! Replicas converge under *any* delivery order, with duplicates, needing no
+//! quorum, lease, or causal typestate (Hellerstein's CALM: monotone = coordination
+//! -free). It is the mirror of [`causal`]: that rung makes out-of-order delivery a
+//! compile error (it *enforces* an order); this one makes order *irrelevant*. The
+//! compiler enforces the interface (the only combinator is `join`); the tests
+//! discharge the algebraic laws, with a non-idempotent negative control.
+//!
 //! ## Still out of scope (parking lot → later versions)
 //!
 //! Benchmarks. (The deterministic network simulation formerly parked here
@@ -157,6 +170,7 @@ pub mod attest;
 pub mod byzantine;
 pub mod causal;
 pub mod consistency;
+pub mod crdt;
 pub mod failover;
 pub mod membership;
 pub mod reconcile;
