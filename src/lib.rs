@@ -502,6 +502,35 @@
 //! [`grant`](backpressure::Receiver::grant) honestly reflects free memory (a declared axiom) and
 //! liveness: a receiver that never grants starves the sender.
 //!
+//! ## Leadership authority by term, structural: [`mod@term`]
+//!
+//! The axes above type *messages*; this one types *who is in charge*. Most of the crate presupposes a
+//! leader ([`failover`] takes a lease "at the boundary", [`staleness`]'s `LeaderLease::acquire` takes
+//! a trusted bool). [`term`] and `election` type the two halves nobody else does. [`term`] is the
+//! **structural** half — the discipline of *holding* leadership: a [`Reign<T>`](term::Reign) is a
+//! linear, unforgeable token for the leader of term `T`, gating leader-only
+//! [`decree`](term::Reign::decree)s; a [`Decree<X, T>`](term::Decree) commits only under the
+//! matching-term reign, so a stale-term command cannot be committed under a later term (E0308, the
+//! crate's founding epoch-unification trick, not [`lockorder`]'s arithmetic rank); and
+//! [`superseded_by`](term::Reign::superseded_by) carries `const { U > T }` (E0080), so authority never
+//! moves backward. Purely **structural**: one node enforces its own term discipline, no coordination.
+//!
+//! ## Leadership by winning a majority, witness: [`mod@election`]
+//!
+//! [`election`] is the dual — the act of *becoming* leader. A candidate's [`Ballot<T>`](election::Ballot)
+//! records votes and [`close`](election::Ballot::close)s against the electorate, reusing
+//! [`membership`]'s [`certify`](membership::Config::certify) to mint an
+//! [`Elected<T, E>`](election::Elected) only from a majority vote-[`Quorum`](membership::Quorum). This
+//! is a runtime **witness** while `term` is structural, because winning needs evidence from a quorum of
+//! the electorate — the coordination the type system cannot mint: the structural/witness split is the
+//! coordination-free (CALM) boundary a fourth time, after order, count, and occupancy. **At most one
+//! leader per term** (a runtime property, not a type guarantee) rides quorum
+//! [`intersect`](membership::Quorum::intersect): two winners of one term would share a voter who voted
+//! twice (forbidden by the one-vote-per-term seam). `Elected<T, E>` supplies the provenance a
+//! `term::Reign<T>` install *should* be gated on — the lease `failover` takes on faith (the coupling is
+//! conventional, not type-enforced). The seams: one vote per voter per term (a declared axiom) and one
+//! electorate per uniqueness argument ([`reconfig_safety`] governs across configurations).
+//!
 //! ## Still out of scope (parking lot → later versions)
 //!
 //! Benchmarks. (The deterministic network simulation formerly parked here
@@ -552,6 +581,8 @@ pub mod at_most_once;
 pub mod at_least_once;
 pub mod send_window;
 pub mod backpressure;
+pub mod term;
+pub mod election;
 
 use core::marker::PhantomData;
 
