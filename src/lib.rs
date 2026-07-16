@@ -531,6 +531,24 @@
 //! conventional, not type-enforced). The seams: one vote per voter per term (a declared axiom) and one
 //! electorate per uniqueness argument ([`reconfig_safety`] governs across configurations).
 //!
+//! ## Liveness by corroborated death — failure detection, witness: [`mod@detector`]
+//!
+//! `detector` is the dual — *confirming* a death. A [`Report<NODE>`](detector::Report) collects the
+//! reporters that [`corroborate`](detector::Report::corroborate) node `NODE`'s silence and
+//! [`close`](detector::Report::close)s against the electorate, reusing [`membership`]'s
+//! [`certify`](membership::Config::certify) to mint a [`Confirmed<NODE, E>`](detector::Confirmed) only
+//! from a majority. This is a runtime **witness** while `suspicion` is structural, because a single
+//! vantage cannot tell slow from dead — confirming death needs evidence from a quorum, the coordination
+//! the type system cannot mint: the structural/witness split is the coordination-free (CALM) boundary a
+//! fifth time, after order, count, occupancy, and leadership. **No contradictory verdict** (a node is
+//! not confirmed dead and alive at once — a runtime property, not a type guarantee) rides quorum
+//! [`intersect`](membership::Quorum::intersect): a dead-majority and an alive-majority of one electorate
+//! share a node that would hold both opinions (forbidden by the one-opinion-per-node seam). A
+//! corroboration is a **claim** — a bare `NodeId`, like a vote — because a peer's local
+//! `suspicion::Suspected` cannot cross the wire; `Confirmed<NODE, E>` supplies the death-provenance
+//! [`failover`]/[`reconfig`] take on faith. The seams: one opinion per node (a declared axiom) and one
+//! electorate ([`reconfig_safety`] governs across configurations).
+//!
 //! ## Still out of scope (parking lot → later versions)
 //!
 //! Benchmarks. (The deterministic network simulation formerly parked here
@@ -583,6 +601,7 @@ pub mod send_window;
 pub mod backpressure;
 pub mod term;
 pub mod election;
+pub mod detector;
 
 use core::marker::PhantomData;
 
