@@ -340,6 +340,24 @@
 //! confirms the hold-across-read-modify-write is load-bearing: drop it and a lost
 //! update appears.
 //!
+//! ## Serializability by validation — the optimistic road: [`mod@occ`]
+//!
+//! [`occ`] is `two_phase_lock`'s dual (Kung & Robinson): take **no** locks, read a
+//! private snapshot, and only at the end **validate** that nothing you read has
+//! changed — commit if so, abort and retry if not. Same guarantee, opposite bet on
+//! contention (the [`twophase`]↔[`saga`], [`crdt`]↔[`causal`] shape). The unsafe move
+//! is *committing without validating*, and it is unrepresentable:
+//! [`commit`](occ::Txn::commit) exists only on `Txn<`[`Valid`](occ::Valid)`>`, and the
+//! only door into that phase is [`validate`](occ::Txn::validate) — which **consumes**
+//! the transaction and re-emits it validated, so there is no detachable "validated"
+//! token to replay onto a different transaction (the deliberate fix for the crate's
+//! recurring witness-not-unforgeable hazard). Unlike `two_phase_lock`'s purely
+//! structural phase machine, OCC's Reading→Valid door is a *runtime* check, so its
+//! guarantee rests on a trusted witness ([`vclock`]/[`fencing`] species): that the
+//! version counter is honest, and that no writer slips into the validate→commit
+//! window, are the seams. A z3 discriminant confirms validation is the sole thing
+//! standing between OCC and a stale-write anomaly.
+//!
 //! ## Still out of scope (parking lot → later versions)
 //!
 //! Benchmarks. (The deterministic network simulation formerly parked here
@@ -379,6 +397,7 @@ pub mod saga;
 pub mod chain;
 pub mod lockorder;
 pub mod two_phase_lock;
+pub mod occ;
 
 use core::marker::PhantomData;
 
