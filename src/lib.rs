@@ -403,6 +403,23 @@
 //! log stability and the true dependency graph are the runtime seams. A TLC
 //! discriminant confirms log-before-deliver is load-bearing against orphan processes.
 //!
+//! ## Recovering a failed process, backward — by rollback: [`mod@recovery_line`]
+//!
+//! [`recovery_line`] types the **backward** family and its hazard. With uncoordinated
+//! checkpoints, the latest ones need not form a consistent cut, so recovery must
+//! *search* for a **recovery line** — the greatest consistent cut ≤ the failure
+//! frontier — by rolling back every orphan, a cascade that is Randell's **domino
+//! effect** (1975). [`resolve`](recovery_line::Line::resolve) — defined only on
+//! `Line<`[`Tentative`](recovery_line::Tentative)`, N>` — **consumes** the frontier and
+//! re-emits the [`Resolved`](recovery_line::Resolved) fixpoint, the result fused to the
+//! search (no detachable witness, the `occ`/`consistent_cut` fix). It reuses
+//! [`consistent_cut`]'s orphan predicate but *computes the meet* rather than checking
+//! membership; its runtime search rests on the same log-honesty seam. A z3 discriminant
+//! confirms rollback-closure is the sole thing standing between a recovery line and an
+//! orphan. The two recovery rungs bound the design space — pay at logging time
+//! (forward) or at recovery time (backward) — the crate's fourth structural/witness
+//! dual, on the backward-time mirror of the snapshot axis.
+//!
 //! ## Still out of scope (parking lot → later versions)
 //!
 //! Benchmarks. (The deterministic network simulation formerly parked here
@@ -446,6 +463,7 @@ pub mod occ;
 pub mod snapshot;
 pub mod consistent_cut;
 pub mod message_log;
+pub mod recovery_line;
 
 use core::marker::PhantomData;
 
