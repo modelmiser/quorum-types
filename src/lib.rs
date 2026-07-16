@@ -502,6 +502,19 @@
 //! [`grant`](backpressure::Receiver::grant) honestly reflects free memory (a declared axiom) and
 //! liveness: a receiver that never grants starves the sender.
 //!
+//! ## Leadership authority by term, structural: [`mod@term`]
+//!
+//! The axes above type *messages*; this one types *who is in charge*. Most of the crate presupposes a
+//! leader ([`failover`] takes a lease "at the boundary", [`staleness`]'s `LeaderLease::acquire` takes
+//! a trusted bool). [`term`] and `election` type the two halves nobody else does. [`term`] is the
+//! **structural** half — the discipline of *holding* leadership: a [`Reign<T>`](term::Reign) is a
+//! linear, unforgeable token for the leader of term `T`, gating leader-only
+//! [`decree`](term::Reign::decree)s; a [`Decree<X, T>`](term::Decree) commits only under the
+//! matching-term reign, so a stale-term command cannot be committed under a later term (E0308, the
+//! crate's founding epoch-unification trick, not [`lockorder`]'s arithmetic rank); and
+//! [`superseded_by`](term::Reign::superseded_by) carries `const { U > T }` (E0080), so authority never
+//! moves backward. Purely **structural**: one node enforces its own term discipline, no coordination.
+//!
 //! ## Still out of scope (parking lot → later versions)
 //!
 //! Benchmarks. (The deterministic network simulation formerly parked here
@@ -552,6 +565,7 @@ pub mod at_most_once;
 pub mod at_least_once;
 pub mod send_window;
 pub mod backpressure;
+pub mod term;
 
 use core::marker::PhantomData;
 
