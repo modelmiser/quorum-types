@@ -475,6 +475,33 @@
 //! *delivery* is the documented impossibility (you cannot type "arrived once", only "applied once").
 //! The seam is liveness: if every copy is lost, no ack is ever minted.
 //!
+//! ## Flow control by a local send window — occupancy, structural: [`mod@send_window`]
+//!
+//! Order types *when* a message is delivered and count *how many times* its effect fires;
+//! [`send_window`] and `backpressure` type *how many may be in flight at once* — the occupancy
+//! axis. [`send_window`] bounds the **sender's own** outstanding messages to a compile-time
+//! window `N`: [`send`](send_window::Window::send) mints a linear, unforgeable
+//! [`Slot`](send_window::Slot) and [`complete`](send_window::Window::complete) returns it, so at
+//! most `N` slots exist and **in-flight ≤ N by construction**. A full window refuses further
+//! sends locally (`Err`) — backpressure computed with no coordination. It is a *semaphore* (slots
+//! regenerate), where [`escrow`]'s reservation is a *drained budget* (occupancy vs volume). Purely
+//! **structural**: bounding your own work is local, no agreement.
+//!
+//! ## Flow control by receiver credit — occupancy, witness: [`mod@backpressure`]
+//!
+//! [`backpressure`] is the dual: a `send_window` protects the sender but says nothing about the
+//! **receiver's** buffer. A [`Credit`](backpressure::Credit) is minted only by the receiver's
+//! [`grant`](backpressure::Receiver::grant) (unforgeable, E0451) reflecting real free buffer, and
+//! the sender may transmit only by [`spend`](backpressure::Credit::spend)ing one, so messages
+//! outstanding toward the receiver never exceed the buffer it advertised — **the receiver never
+//! overflows**. This is a runtime **witness** while `send_window` is structural, because not
+//! overrunning the *peer* needs evidence *from* the peer — the coordination the type system
+//! cannot mint: the structural/witness split is the coordination-free (CALM) boundary a third
+//! time, after order and count. Composing the two — send the minimum of the local window and the
+//! outstanding credits — is TCP's `min(self-limit, rwnd)` flow control. The seam is that
+//! [`grant`](backpressure::Receiver::grant) honestly reflects free memory (a declared axiom) and
+//! liveness: a receiver that never grants starves the sender.
+//!
 //! ## Still out of scope (parking lot → later versions)
 //!
 //! Benchmarks. (The deterministic network simulation formerly parked here
@@ -523,6 +550,8 @@ pub mod fifo;
 pub mod total_order;
 pub mod at_most_once;
 pub mod at_least_once;
+pub mod send_window;
+pub mod backpressure;
 
 use core::marker::PhantomData;
 
