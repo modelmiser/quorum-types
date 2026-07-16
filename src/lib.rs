@@ -462,6 +462,19 @@
 //! linearity is local, no agreement. The seam: recognizing which wire copies are duplicates is the
 //! transport's job, as `fifo` trusts it for sequence numbers.
 //!
+//! ## Delivery count — at-least-once, by ack'd retransmit: [`mod@at_least_once`]
+//!
+//! [`at_least_once`] is the dual: the sender keeps a [`Pending`](at_least_once::Pending) message and
+//! retransmits it until the receiver returns an [`Ack`](at_least_once::Ack) — the only key that
+//! [`retire`](at_least_once::Pending::retire)s it. The ack is unforgeable (E0451) and identity-tied,
+//! so an ack for one message cannot retire another (E0308). This is a runtime **witness** while
+//! `at_most_once` is structural, because at-least-once needs a **round trip** — evidence from the
+//! other side — which is the coordination the type system cannot mint: the structural/witness split
+//! is the coordination-free (CALM) boundary once more. Composing the two — at-least-once delivery of
+//! an at-most-once (or [`crdt`]-idempotent) effect — gives exactly-once *processing*; exactly-once
+//! *delivery* is the documented impossibility (you cannot type "arrived once", only "applied once").
+//! The seam is liveness: if every copy is lost, no ack is ever minted.
+//!
 //! ## Still out of scope (parking lot → later versions)
 //!
 //! Benchmarks. (The deterministic network simulation formerly parked here
@@ -509,6 +522,7 @@ pub mod recovery_line;
 pub mod fifo;
 pub mod total_order;
 pub mod at_most_once;
+pub mod at_least_once;
 
 use core::marker::PhantomData;
 
