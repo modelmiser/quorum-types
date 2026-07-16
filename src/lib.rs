@@ -420,6 +420,20 @@
 //! (forward) or at recovery time (backward) — the crate's fourth structural/witness
 //! dual, on the backward-time mirror of the snapshot axis.
 //!
+//! ## Delivery order by source, at the floor — FIFO: [`mod@fifo`]
+//!
+//! [`causal`] types the *middle* of the delivery-ordering hierarchy; [`fifo`] types its
+//! **floor** — the weakest non-trivial order, per-sender FIFO. A sender's own messages
+//! deliver in send order and nothing is promised across senders (that cross-sender
+//! constraint is exactly what [`causal`] adds). The rule is a compile-time **arithmetic**
+//! wall: [`Msg::deliver`](fifo::Msg::deliver) carries `const { assert!(N == PREV + 1) }`, so
+//! a gap in a sender's stream fails const-evaluation (E0080) — the [`lockorder`]/[`staleness`]
+//! mechanism, not [`causal`]'s type-identity unification. FIFO is **coordination-free**
+//! (I-confluent), so like [`causal`], [`crdt`], and the [`calm`] floor the type system can
+//! own it. This rung also *discharges* the untyped "FIFO channels" assumption [`chain`] and
+//! [`snapshot`] rest on. The seam is the same as [`causal`]'s: the transport supplies the true
+//! sequence numbers.
+//!
 //! ## Still out of scope (parking lot → later versions)
 //!
 //! Benchmarks. (The deterministic network simulation formerly parked here
@@ -464,6 +478,7 @@ pub mod snapshot;
 pub mod consistent_cut;
 pub mod message_log;
 pub mod recovery_line;
+pub mod fifo;
 
 use core::marker::PhantomData;
 
