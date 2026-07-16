@@ -475,6 +475,18 @@
 //! *delivery* is the documented impossibility (you cannot type "arrived once", only "applied once").
 //! The seam is liveness: if every copy is lost, no ack is ever minted.
 //!
+//! ## Flow control by a local send window — occupancy, structural: [`mod@send_window`]
+//!
+//! Order types *when* a message is delivered and count *how many times* its effect fires;
+//! [`send_window`] and `backpressure` type *how many may be in flight at once* — the occupancy
+//! axis. [`send_window`] bounds the **sender's own** outstanding messages to a compile-time
+//! window `N`: [`send`](send_window::Window::send) mints a linear, unforgeable
+//! [`Slot`](send_window::Slot) and [`complete`](send_window::Window::complete) returns it, so at
+//! most `N` slots exist and **in-flight ≤ N by construction**. A full window refuses further
+//! sends locally (`Err`) — backpressure computed with no coordination. It is a *semaphore* (slots
+//! regenerate), where [`escrow`]'s reservation is a *drained budget* (occupancy vs volume). Purely
+//! **structural**: bounding your own work is local, no agreement.
+//!
 //! ## Still out of scope (parking lot → later versions)
 //!
 //! Benchmarks. (The deterministic network simulation formerly parked here
@@ -523,6 +535,7 @@ pub mod fifo;
 pub mod total_order;
 pub mod at_most_once;
 pub mod at_least_once;
+pub mod send_window;
 
 use core::marker::PhantomData;
 
