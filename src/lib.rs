@@ -388,6 +388,38 @@
 //! compose: `snapshot` produces by protocol what `consistent_cut` certifies by
 //! predicate — Chandy–Lamport's theorem is exactly that identity.
 //!
+//! ## Recovering a failed process, forward — by replay: [`mod@message_log`]
+//!
+//! The snapshot axis records a consistent state; *recovery* is what you do with one
+//! after a crash, and it splits into two families (Elnozahy et al., ACM CSUR 2002).
+//! [`message_log`] types the **forward** family: log each message's determinant
+//! *before* delivering it, so a crashed process is replayed forward from its last
+//! checkpoint with no surviving process rolled back. The pessimistic-logging rule —
+//! never let state depend on an unlogged delivery (Alvisi & Marzullo's
+//! *always-no-orphans*) — is made **structural**: [`deliver`](message_log::Msg::deliver)
+//! exists only on `Msg<`[`Logged`](message_log::Logged)`>`, and a caused send must cite
+//! the [`Stable`](message_log::Stable) witness a delivery mints, so depending on an
+//! unlogged message is unrepresentable. Like `snapshot` it is purely **structural**;
+//! log stability and the true dependency graph are the runtime seams. A TLC
+//! discriminant confirms log-before-deliver is load-bearing against orphan processes.
+//!
+//! ## Recovering a failed process, backward — by rollback: [`mod@recovery_line`]
+//!
+//! [`recovery_line`] types the **backward** family and its hazard. With uncoordinated
+//! checkpoints, the latest ones need not form a consistent cut, so recovery must
+//! *search* for a **recovery line** — the greatest consistent cut ≤ the failure
+//! frontier — by rolling back every orphan, a cascade that is Randell's **domino
+//! effect** (1975). [`resolve`](recovery_line::Line::resolve) — defined only on
+//! `Line<`[`Tentative`](recovery_line::Tentative)`, N>` — **consumes** the frontier and
+//! re-emits the [`Resolved`](recovery_line::Resolved) fixpoint, the result fused to the
+//! search (no detachable witness, the `occ`/`consistent_cut` fix). It reuses
+//! [`consistent_cut`]'s orphan predicate but *computes the meet* rather than checking
+//! membership; its runtime search rests on the same log-honesty seam. A z3 discriminant
+//! confirms rollback-closure is the sole thing standing between a recovery line and an
+//! orphan. The two recovery rungs bound the design space — pay at logging time
+//! (forward) or at recovery time (backward) — the crate's fourth structural/witness
+//! dual, on the backward-time mirror of the snapshot axis.
+//!
 //! ## Still out of scope (parking lot → later versions)
 //!
 //! Benchmarks. (The deterministic network simulation formerly parked here
@@ -430,6 +462,8 @@ pub mod two_phase_lock;
 pub mod occ;
 pub mod snapshot;
 pub mod consistent_cut;
+pub mod message_log;
+pub mod recovery_line;
 
 use core::marker::PhantomData;
 
