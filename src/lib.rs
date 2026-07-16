@@ -628,6 +628,24 @@
 //! (inherited from `sharding`'s routing), and a silent shard blocks the commit (unanimity's liveness
 //! price, as in `stability`).
 //!
+//! ## Detecting deadlock by a global wait-for graph — the witness dual to lock ordering: [`mod@deadlock`]
+//!
+//! [`lockorder`] types deadlock *avoidance* — rank-monotone acquisition, a local, coordination-free
+//! discipline that makes a circular wait unrepresentable ("no detector, no rollback, no timeout"). It was
+//! the crate's one **unpaired** axis; `deadlock` is its missing witness. When locks are not globally ranked,
+//! a cycle of "holds one, waits for another" can form, and finding it needs the **global wait-for graph** —
+//! a [`WaitForGraph<E>`](deadlock::WaitForGraph) assembled from per-node wait claims, whose
+//! [`detect`](deadlock::WaitForGraph::detect) consumes it and returns an [`Acyclic<E>`](deadlock::Acyclic)
+//! witness or a [`Cycle<E>`](deadlock::Cycle) certificate (unforgeable; move-only — [`abort_victim`](deadlock::Cycle::abort_victim)
+//! consumes it, steering toward one abort per detection). This is a runtime **witness** while `lockorder` is
+//! structural, because no single node can see a global cycle: avoidance is local, detection is global — the
+//! two textbook answers to one hazard, split exactly on the coordination-free (CALM) boundary. Its witness
+//! is a new **predicate** within the crate's existing global-predicate family ([`consistent_cut`]'s causal
+//! closure, [`recovery_line`]'s fixpoint meet): a global-graph cycle-reachability search, distinct from
+//! quorum intersection and unanimity barrier. The seams: cycle == deadlock only under single-outstanding
+//! (AND-wait needs knot detection), the graph is trusted global evidence (sound only over a consistent
+//! cut), and victim selection is a policy.
+//!
 //! ## Still out of scope (parking lot → later versions)
 //!
 //! Benchmarks. (The deterministic network simulation formerly parked here
@@ -686,6 +704,7 @@ pub mod compaction;
 pub mod stability;
 pub mod sharding;
 pub mod cross_shard;
+pub mod deadlock;
 
 use core::marker::PhantomData;
 
