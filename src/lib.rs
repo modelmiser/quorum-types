@@ -596,6 +596,20 @@
 //! watermark is a trusted claim, and unanimity's liveness cost is that one silent node halts GC forever
 //! — escaped in practice by excluding a [`detector`]-confirmed-dead node from the roster.
 //!
+//! ## Partitioning the key space by disjoint shards — sharding, structural: [`mod@sharding`]
+//!
+//! The crate's founding move splits a *member set* into two disjoint halves `Lo`/`Hi`, proved disjoint
+//! by brand unification. `sharding` is that mechanism generalized from a 2-way split of the node set to
+//! an **N-way partition of the key space** (consistent hashing): a [`Key<S>`](sharding::Key) is a key
+//! certified to live in shard `S`, minted only by [`Shard::<S>::admit`](sharding::Shard::admit) (the
+//! routing function), and a `Key<T>` for any other shard fails to unify where a `Key<S>` is expected. A
+//! [`Partition<S>`](sharding::Partition)'s mutator takes only its own shard's keys, so a single-shard
+//! [`apply`](sharding::Partition::apply) is **coordination-free** — one node owns the shard and decides
+//! alone (Bailis single-key I-confluence). This is the structural, CALM-side rung; the witness partner
+//! `cross_shard` types what happens when a transaction spans shards. The seam: the routing function is
+//! trusted (the same root-of-trust as [`Config::new`](membership::Config::new)), and `S` is a shard
+//! *class*, not a per-key identity.
+//!
 //! ## Still out of scope (parking lot → later versions)
 //!
 //! Benchmarks. (The deterministic network simulation formerly parked here
@@ -652,6 +666,7 @@ pub mod suspicion;
 pub mod detector;
 pub mod compaction;
 pub mod stability;
+pub mod sharding;
 
 use core::marker::PhantomData;
 
