@@ -531,6 +531,20 @@
 //! conventional, not type-enforced). The seams: one vote per voter per term (a declared axiom) and one
 //! electorate per uniqueness argument ([`reconfig_safety`] governs across configurations).
 //!
+//! ## Liveness by local suspicion — failure detection, structural: [`mod@suspicion`]
+//!
+//! The leadership axis presupposes knowing a leader *failed*; every lease/failover module takes that
+//! judgement on faith ([`failover`] consumes a lease expiry, [`staleness`]'s leader check is "crude").
+//! This axis types the judgement itself — liveness, the one dimension the rest of the crate declares
+//! out of scope. `suspicion` is the **structural** half: a [`Monitor<NODE>`](suspicion::Monitor)
+//! watching one peer mints a linear, unforgeable [`Suspected<NODE>`](suspicion::Suspected) iff the
+//! silence since it was last `heard_at` **exceeds** a runtime budget (an `Option`-returning local
+//! boundary, like [`staleness`]'s `read_within`). The primary mechanism is **node identity** — the
+//! watched node rides in the type, so `Suspected<3>` and `Suspected<4>` are different types (E0308) —
+//! deliberately *not* a timeout `const` gate (which would re-skin [`staleness`]'s `Δ ≤ TOL`); the
+//! timeout is a runtime value. Purely **structural**: one node judges its own clock, no coordination —
+//! but a slow node is indistinguishable from a dead one (FLP), so this is *suspicion*, not death.
+//!
 //! ## Still out of scope (parking lot → later versions)
 //!
 //! Benchmarks. (The deterministic network simulation formerly parked here
@@ -583,6 +597,7 @@ pub mod send_window;
 pub mod backpressure;
 pub mod term;
 pub mod election;
+pub mod suspicion;
 
 use core::marker::PhantomData;
 
