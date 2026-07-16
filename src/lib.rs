@@ -596,6 +596,38 @@
 //! watermark is a trusted claim, and unanimity's liveness cost is that one silent node halts GC forever
 //! — escaped in practice by excluding a [`detector`]-confirmed-dead node from the roster.
 //!
+//! ## Partitioning the key space by disjoint shards — sharding, structural: [`mod@sharding`]
+//!
+//! The crate's founding move splits a *member set* into two disjoint halves `Lo`/`Hi`, proved disjoint
+//! by brand unification. `sharding` is that mechanism generalized from a 2-way split of the node set to
+//! an **N-way partition of the key space** (consistent hashing): a [`Key<S>`](sharding::Key) is a key
+//! certified to live in shard `S`, minted only by [`Shard::<S>::admit`](sharding::Shard::admit) (the
+//! routing function), and a `Key<T>` for any other shard fails to unify where a `Key<S>` is expected. A
+//! [`Partition<S>`](sharding::Partition)'s mutator takes only its own shard's keys, so a single-shard
+//! [`apply`](sharding::Partition::apply) is **coordination-free** — one node owns the shard and decides
+//! alone (Bailis single-key I-confluence). This is the structural, CALM-side rung; the witness partner
+//! `cross_shard` types what happens when a transaction spans shards. The seam: the routing function is
+//! trusted (the same root-of-trust as [`Config::new`](membership::Config::new)), and `S` is a shard
+//! *class*, not a per-key identity.
+//!
+//! ## Committing across shards by a participant barrier — sharding, witness: [`mod@cross_shard`]
+//!
+//! `cross_shard` is the dual: once a transaction touches more than one shard, no node owns the whole
+//! write, and committing safely needs evidence from **every** shard it touches (one dissenter tears the
+//! write). An [`AtomicCommit<E>`](cross_shard::AtomicCommit) declares the transaction's participant set,
+//! collects a linear [`ShardVote<S, E>`](cross_shard::ShardVote) from each, and
+//! [`seal`](cross_shard::AtomicCommit::seal)s a [`CrossCommitted<E>`](cross_shard::CrossCommitted) **only
+//! if every declared participant voted** — unanimity over a *per-transaction* subset. The witness
+//! **composes** two existing mechanisms — `stability`'s unanimity barrier fed `twophase`-style linear,
+//! epoch-branded votes — over a participant set chosen per transaction; the contribution is that
+//! combination, not a new barrier shape. It is distinct from [`twophase`], which types the in-doubt
+//! *blocking* and leaves vote-completeness an untyped seam; `cross_shard` types exactly that
+//! completeness. The structural/witness split lands on the coordination-free (CALM) boundary a seventh
+//! time (order, count, occupancy, leadership, liveness, GC, and now data partitioning): single-shard is
+//! free, cross-shard is coordinated. The seams: coverage of the declared set is the caller's obligation
+//! (inherited from `sharding`'s routing), and a silent shard blocks the commit (unanimity's liveness
+//! price, as in `stability`).
+//!
 //! ## Still out of scope (parking lot → later versions)
 //!
 //! Benchmarks. (The deterministic network simulation formerly parked here
@@ -652,6 +684,8 @@ pub mod suspicion;
 pub mod detector;
 pub mod compaction;
 pub mod stability;
+pub mod sharding;
+pub mod cross_shard;
 
 use core::marker::PhantomData;
 
