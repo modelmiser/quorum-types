@@ -646,6 +646,58 @@
 //! (AND-wait needs knot detection), the graph is trusted global evidence (sound only over a consistent
 //! cut), and victim selection is a policy.
 //!
+//! ## The result
+//!
+//! Nineteen pre-registered loops built 43 modules (73 build-and-verify results,
+//! none abandoned or inconclusive; each ships `compile_fail` negatives and was
+//! cold-reviewed to convergence, with z3/TLC cross-checks for many loops kept
+//! out-of-tree in a research harness). They converged on one finding. Full tables in
+//! [`THESIS.md`](https://github.com/modelmiser/quorum-types/blob/main/THESIS.md);
+//! the experience report is `PAPER.md`.
+//!
+//! **Two species, split on the CALM line.** Every distributed concern typed here
+//! falls into one of two kinds, and the split *coincides with the coordination-
+//! free (CALM) boundary*:
+//!
+//! * **Structural** (20 modules) — compile-time-local, needs no evidence from
+//!   other nodes. The guarantee is discharged by the compiler; a wrong program
+//!   does not typecheck. This is the CALM side.
+//! * **Witness** (23 modules) — rests on *trusted runtime evidence* assembled
+//!   from other nodes, minted at a single named construction crossing. This is
+//!   the coordinated side.
+//!
+//! The boundary tracks compile-time-local vs. runtime-input, orthogonal to the
+//! concern, and held intact on **eight paired axes** — each built as a structural
+//! rung and its witness dual: order (`fifo`/`total_order`), count
+//! (`at_most_once`/`at_least_once`), occupancy (`send_window`/`backpressure`),
+//! leadership (`term`/`election`), liveness (`suspicion`/`detector`), GC
+//! (`compaction`/`stability`), data-partitioning (`sharding`/`cross_shard`),
+//! deadlock (`lockorder`/`deadlock`).
+//!
+//! **Four compile primitives, closed set.** Every structural guarantee, and the
+//! compile-time skeleton of every witness, is one of exactly four Rust compile
+//! errors: **E0451** (private/sealed → unforgeability), **E0382** (move →
+//! linearity), **E0308** (brand → unification), **E0080** (const-eval → monotone-
+//! arithmetic wall). No fifth appeared in nineteen loops.
+//!
+//! **Five witness families, exhausting countable cross-node evidence.** The 23
+//! witnesses assemble node reports in five countable families (with a few
+//! straddlers, not a crisp partition): quorum/threshold-count, unanimity-barrier,
+//! pairwise compare, peer-issued linear token (ack or credit), and global-predicate
+//! over assembled state. The residue — `commit_wait`, `failover`, `staleness`
+//! (temporal evidence: "you cannot type what time it is, only that you waited") and
+//! `total_order` (a delegated sequencer) — is temporal or delegated, not countable
+//! cross-node evidence, so it hands off to a runtime guard or a consensus black box
+//! rather than to a sixth family.
+//!
+//! **Why it stops here (saturation).** The mechanism space closed: the primitive
+//! set is four, the countable-evidence families are five, and the remaining axes are
+//! present, re-skins of existing rungs, or off-thesis (cryptographic evidence —
+//! threshold signatures, erasure coding — is a distinct model held for a separate
+//! crate). The crate is thesis-complete. What escapes the argument is stated
+//! honestly in `THESIS.md`: uncountable/continuous evidence, cryptographic shapes,
+//! and the fact that eight axes is a sample, not an enumeration.
+//!
 //! ## Still out of scope (parking lot → later versions)
 //!
 //! Benchmarks. (The deterministic network simulation formerly parked here
