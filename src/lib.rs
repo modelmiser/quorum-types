@@ -322,6 +322,24 @@
 //! sufficient-not-exact ([`flex`]'s trade). A z3 discriminant confirms rank-ordered
 //! acquisition is the sole thing preventing a wait-for cycle.
 //!
+//! ## Serializability by locking — the pessimistic road: [`mod@two_phase_lock`]
+//!
+//! [`twophase`] and [`saga`] type the **A** of ACID (atomicity); the quorum, lattice,
+//! and clock rungs type **C** (consistency). [`two_phase_lock`] types the letter the
+//! ladder had skipped — **I**solation. Two-phase *locking* (not to be confused with
+//! two-phase *commit* in [`twophase`]) makes an interleaved schedule
+//! conflict-serializable with one monotone rule: a transaction may acquire locks (the
+//! **growing** phase) then release them (the **shrinking** phase), but *never acquire
+//! after releasing*. The phase is a type parameter, and
+//! [`acquire`](two_phase_lock::Txn::acquire) exists **only** on
+//! `Txn<`[`Growing`](two_phase_lock::Growing)`>` — so an acquire-after-release, the
+//! one move that breaks serializability, is a compile error, not a runtime check. The
+//! types own one transaction's phase discipline; that *every* transaction is two-phase
+//! (the global obligation), the real lock table, and the *deadlock* 2PL can cause
+//! (the price [`lockorder`] pays to avoid) stay runtime seams. A TLC discriminant
+//! confirms the hold-across-read-modify-write is load-bearing: drop it and a lost
+//! update appears.
+//!
 //! ## Still out of scope (parking lot → later versions)
 //!
 //! Benchmarks. (The deterministic network simulation formerly parked here
@@ -360,6 +378,7 @@ pub mod fencing;
 pub mod saga;
 pub mod chain;
 pub mod lockorder;
+pub mod two_phase_lock;
 
 use core::marker::PhantomData;
 
