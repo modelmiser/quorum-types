@@ -358,6 +358,36 @@
 //! window, are the seams. A z3 discriminant confirms validation is the sole thing
 //! standing between OCC and a stale-write anomaly.
 //!
+//! ## Consistent global state by protocol — the operational road: [`mod@snapshot`]
+//!
+//! Every rung so far typed something *per transaction*. [`snapshot`] steps to a
+//! different axis: recording a consistent state of *every* process at one logical
+//! instant (Chandy & Lamport, 1985), without stopping the system. The move that
+//! manufactures an **orphan** — recording an incoming channel before recording your own
+//! process state — is unrepresentable: [`record_channel`](snapshot::Snapshot::record_channel)
+//! exists only on `Snapshot<`[`Recording`](snapshot::Recording)`>`, and the sole door
+//! into that phase is [`begin`](snapshot::Snapshot::begin), which records own-state
+//! first. Like `two_phase_lock`, it is a purely **structural** guarantee (no trusted
+//! witness, only a type-level phase); FIFO channels, one-marker-per-channel, and
+//! global consistency across processes are the documented runtime seams. A TLC
+//! discriminant confirms the record-self-first order is load-bearing against orphans.
+//!
+//! ## Consistent global state by predicate — the denotational road: [`mod@consistent_cut`]
+//!
+//! [`consistent_cut`] is `snapshot`'s dual — not a rival algorithm but the *property*
+//! its output must satisfy. A cut (a [`vclock`]-shaped frontier of per-process event
+//! counts) is **consistent** iff it is causally left-closed: every message it records
+//! as *received* also has its *send* inside the cut. The forbidden shape is an orphan
+//! (received inside, sent outside). [`verify`](consistent_cut::Cut::verify) — defined
+//! only on `Cut<`[`Unverified`](consistent_cut::Unverified)`, N>` — **consumes** the cut
+//! and re-emits it [`Consistent`](consistent_cut::Consistent) iff no orphan exists, so
+//! the proof is fused to the frontier (no detachable witness — the same fix `occ` uses).
+//! Its Unverified→Consistent door is a *runtime* check, so like [`vclock`] it trusts the
+//! message log to be complete and its indices real. A z3 discriminant confirms causal
+//! closure is the sole thing separating a cut from the orphan anomaly. The two rungs
+//! compose: `snapshot` produces by protocol what `consistent_cut` certifies by
+//! predicate — Chandy–Lamport's theorem is exactly that identity.
+//!
 //! ## Still out of scope (parking lot → later versions)
 //!
 //! Benchmarks. (The deterministic network simulation formerly parked here
@@ -398,6 +428,8 @@ pub mod chain;
 pub mod lockorder;
 pub mod two_phase_lock;
 pub mod occ;
+pub mod snapshot;
+pub mod consistent_cut;
 
 use core::marker::PhantomData;
 
