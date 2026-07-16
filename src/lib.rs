@@ -358,6 +358,20 @@
 //! window, are the seams. A z3 discriminant confirms validation is the sole thing
 //! standing between OCC and a stale-write anomaly.
 //!
+//! ## Consistent global state by protocol — the operational road: [`mod@snapshot`]
+//!
+//! Every rung so far typed something *per transaction*. [`snapshot`] steps to a
+//! different axis: recording a consistent state of *every* process at one logical
+//! instant (Chandy & Lamport, 1985), without stopping the system. The move that
+//! manufactures an **orphan** — recording an incoming channel before recording your own
+//! process state — is unrepresentable: [`record_channel`](snapshot::Snapshot::record_channel)
+//! exists only on `Snapshot<`[`Recording`](snapshot::Recording)`>`, and the sole door
+//! into that phase is [`begin`](snapshot::Snapshot::begin), which records own-state
+//! first. Like `two_phase_lock`, it is a purely **structural** guarantee (no trusted
+//! witness, only a type-level phase); FIFO channels, one-marker-per-channel, and
+//! global consistency across processes are the documented runtime seams. A TLC
+//! discriminant confirms the record-self-first order is load-bearing against orphans.
+//!
 //! ## Still out of scope (parking lot → later versions)
 //!
 //! Benchmarks. (The deterministic network simulation formerly parked here
@@ -398,6 +412,7 @@ pub mod chain;
 pub mod lockorder;
 pub mod two_phase_lock;
 pub mod occ;
+pub mod snapshot;
 
 use core::marker::PhantomData;
 
