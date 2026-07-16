@@ -288,6 +288,40 @@
 //! under step dependencies: reverse restores the pre-saga state, out-of-order can
 //! violate it.)
 //!
+//! ## Linearizability from a line, not a set: [`mod@chain`]
+//!
+//! Every consistency rung above earns its guarantee from a *set* that intersects —
+//! a quorum ([`membership`], [`flex`], [`byzantine`]), a value lattice, or a clock.
+//! [`chain`] takes the other road (van Renesse & Schneider): the replicas are a
+//! **line** Head → Mid → Tail, an update is applied at the head and forwarded one
+//! hop at a time, and it is committed *exactly when it reaches the tail* — by which
+//! point every upstream replica has it. Position is a type parameter; the [`Forward`](chain::Forward)
+//! trait carries the successor as an associated type (`Tail` has none), so
+//! [`forward`](chain::Update::forward) advances one hop and [`commit`](chain::Update::commit)
+//! is reachable *only* from `Update<`[`Tail`](chain::Tail)`>` — committing a
+//! half-replicated update is a compile error, not a runtime check. Strong
+//! consistency comes from the *order of traversal*, with no quorum anywhere. The
+//! types own one update's Head→Tail walk; per-node durability, cross-update per-link
+//! FIFO order (the linearizability-across-updates seam a TLC discriminant covers),
+//! and chain repair on failure stay runtime.
+//!
+//! ## Deadlock made unrepresentable: [`mod@lockorder`]
+//!
+//! [`failover`] and [`fencing`] type a *single* lock; [`lockorder`] types the
+//! *multi-lock* hazard's classic fix (Havender/Dijkstra): give every resource a
+//! **rank** and acquire in strictly increasing rank order, so a hold-and-wait cycle
+//! cannot close. A [`Held`](lockorder::Held)`<HI>` carries the highest rank held as
+//! a const generic, and [`acquire`](lockorder::Held::acquire)`::<R>` guards its body
+//! with `const { assert!(R > HI) }` — an out-of-order acquire fails at
+//! monomorphization, so the circular wait that could deadlock is a compile error.
+//! A move-only [`Guard`](lockorder::Guard) makes [`release`](lockorder::Held::release)
+//! strictly LIFO (the mirror of the increasing-rank acquire). Its seam is a distinct
+//! *species*: not a trusted runtime witness but a trusted global **ordering** — that
+//! the ranks form one consistent order every thread obeys is a declared axiom (the
+//! [`byzantine`] `f` / [`calm`]-label shape), and the monotone watermark is
+//! sufficient-not-exact ([`flex`]'s trade). A z3 discriminant confirms rank-ordered
+//! acquisition is the sole thing preventing a wait-for cycle.
+//!
 //! ## Still out of scope (parking lot → later versions)
 //!
 //! Benchmarks. (The deterministic network simulation formerly parked here
@@ -324,6 +358,8 @@ pub mod vclock;
 pub mod staleness;
 pub mod fencing;
 pub mod saga;
+pub mod chain;
+pub mod lockorder;
 
 use core::marker::PhantomData;
 
