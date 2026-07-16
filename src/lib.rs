@@ -388,6 +388,21 @@
 //! compose: `snapshot` produces by protocol what `consistent_cut` certifies by
 //! predicate — Chandy–Lamport's theorem is exactly that identity.
 //!
+//! ## Recovering a failed process, forward — by replay: [`mod@message_log`]
+//!
+//! The snapshot axis records a consistent state; *recovery* is what you do with one
+//! after a crash, and it splits into two families (Elnozahy et al., ACM CSUR 2002).
+//! [`message_log`] types the **forward** family: log each message's determinant
+//! *before* delivering it, so a crashed process is replayed forward from its last
+//! checkpoint with no surviving process rolled back. The pessimistic-logging rule —
+//! never let state depend on an unlogged delivery (Alvisi & Marzullo's
+//! *always-no-orphans*) — is made **structural**: [`deliver`](message_log::Msg::deliver)
+//! exists only on `Msg<`[`Logged`](message_log::Logged)`>`, and a caused send must cite
+//! the [`Stable`](message_log::Stable) witness a delivery mints, so depending on an
+//! unlogged message is unrepresentable. Like `snapshot` it is purely **structural**;
+//! log stability and the true dependency graph are the runtime seams. A TLC
+//! discriminant confirms log-before-deliver is load-bearing against orphan processes.
+//!
 //! ## Still out of scope (parking lot → later versions)
 //!
 //! Benchmarks. (The deterministic network simulation formerly parked here
@@ -430,6 +445,7 @@ pub mod two_phase_lock;
 pub mod occ;
 pub mod snapshot;
 pub mod consistent_cut;
+pub mod message_log;
 
 use core::marker::PhantomData;
 
