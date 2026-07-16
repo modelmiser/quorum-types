@@ -420,6 +420,21 @@
 //! (forward) or at recovery time (backward) — the crate's fourth structural/witness
 //! dual, on the backward-time mirror of the snapshot axis.
 //!
+//! ## Delivery order by agreement — total (atomic) broadcast: [`mod@total_order`]
+//!
+//! [`total_order`] types the orthogonal *agreement axis*: all correct processes deliver in one
+//! common order. This is a different kind of guarantee — total-order broadcast is **equivalent
+//! to consensus** (Chandra–Toueg), so it is *not* coordination-free, and that is exactly why it
+//! is a runtime **witness** rather than a structural rung: the structural/witness split
+//! coincides with the [`calm`]/[`crdt`] coordination-free boundary. A [`Sequencer`](total_order::Sequencer)
+//! is the sole minter of [`Ordered`](total_order::Ordered) messages (private fields ⇒
+//! unforgeable), and a linear [`Cursor`](total_order::Cursor) delivers them in position order —
+//! once, serial, no forking. What the types own is local (unforgeable, once, serial); what they
+//! cannot own is the crux — that every receiver shares one sequencer, i.e. **consensus** — which
+//! is the trusted runtime seam. `fifo` (own nothing to a witness) and `total_order` (own the
+//! whole order to a witness) are the two poles of the ordering-strength spectrum, with [`causal`]
+//! between them.
+//!
 //! ## Still out of scope (parking lot → later versions)
 //!
 //! Benchmarks. (The deterministic network simulation formerly parked here
@@ -464,6 +479,7 @@ pub mod snapshot;
 pub mod consistent_cut;
 pub mod message_log;
 pub mod recovery_line;
+pub mod total_order;
 
 use core::marker::PhantomData;
 
