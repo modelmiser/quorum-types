@@ -563,6 +563,21 @@
 //! [`failover`]/[`reconfig`] take on faith. The seams: one opinion per node (a declared axiom) and one
 //! electorate ([`reconfig_safety`] governs across configurations).
 //!
+//! ## Reclaiming storage by local compaction — garbage collection, structural: [`mod@compaction`]
+//!
+//! Every recovery and replication rung above keeps history *around* ([`message_log`] logs before
+//! delivering, [`chain`] forwards down a line, [`snapshot`] records state); none ever types *reclaiming*
+//! that storage. A real log cannot grow forever — a node must **forget** an old prefix. `compaction` is
+//! the **structural** half: a [`Retained<STREAM>`](compaction::Retained) forgets its own prefix by a
+//! move — [`compact`](compaction::Retained::compact) **consumes** the pre-compaction view (so the
+//! dropped prefix cannot be read back through it, E0382), raises a runtime floor, and mints an
+//! unforgeable [`Forgotten<STREAM>`](compaction::Forgotten) receipt (E0451) branded by the log stream
+//! (E0308). This is *linearity-as-destruction* — the consumed resource is retained state being
+//! permanently discarded, not a capability spent ([`escrow`]) or a message retired
+//! ([`at_least_once`]). Purely **structural**: dropping your own storage needs no coordination. The
+//! seam is sharp — nothing here checks the drop is *safe* (that no peer still needs the prefix); that is
+//! the witness rung's job.
+//!
 //! ## Still out of scope (parking lot → later versions)
 //!
 //! Benchmarks. (The deterministic network simulation formerly parked here
@@ -617,6 +632,7 @@ pub mod term;
 pub mod election;
 pub mod suspicion;
 pub mod detector;
+pub mod compaction;
 
 use core::marker::PhantomData;
 
