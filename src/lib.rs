@@ -578,6 +578,24 @@
 //! seam is sharp — nothing here checks the drop is *safe* (that no peer still needs the prefix); that is
 //! the witness rung's job.
 //!
+//! ## Reclaiming storage by unanimous stability — garbage collection, witness: [`mod@stability`]
+//!
+//! `stability` is the dual — certifying that forgetting is *safe*. Every other witness rung earns its
+//! guarantee from quorum **intersection** ([`membership`], [`election`], [`detector`]); safe-to-forget
+//! is the first axis where intersection is the *wrong* primitive, because a majority reporting "applied
+//! up to `W`" says nothing about the lagging minority that still needs the prefix. So a
+//! [`Barrier<STREAM, E>`](stability::Barrier) collects one watermark [`ack`](stability::Barrier::ack)
+//! per member and [`seal`](stability::Barrier::seal) mints a
+//! [`StableUpTo<STREAM, E>`](stability::StableUpTo) **only if every member has acked** (unanimity, not a
+//! majority), carrying the `min` of their watermarks as the frontier. This is a runtime **witness**
+//! while `compaction` is structural, because knowing the drop is safe needs evidence from *everyone* —
+//! the strongest coordination in the crate, strictly beyond a quorum: the structural/witness split is
+//! the coordination-free (CALM) boundary a sixth time, after order, count, occupancy, leadership, and
+//! liveness, and the first whose witness is a **barrier** rather than a quorum. `StableUpTo` supplies
+//! the frontier a `compaction` should compact up to (conventional, not type-enforced). The seams: a
+//! watermark is a trusted claim, and unanimity's liveness cost is that one silent node halts GC forever
+//! — escaped in practice by excluding a [`detector`]-confirmed-dead node from the roster.
+//!
 //! ## Still out of scope (parking lot → later versions)
 //!
 //! Benchmarks. (The deterministic network simulation formerly parked here
@@ -633,6 +651,7 @@ pub mod election;
 pub mod suspicion;
 pub mod detector;
 pub mod compaction;
+pub mod stability;
 
 use core::marker::PhantomData;
 
